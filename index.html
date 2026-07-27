@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Embertrail — A Living Trail</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="loadingScreen">LOADING WORLD<div class="sub">shaping mountains, seeding seasons…</div></div>
+  <div class="vignette"></div>
+  <div id="canvas-wrap"></div>
+
+  <div class="letterbox top" id="letterTop"></div>
+  <div class="letterbox bottom" id="letterBottom"></div>
+  <div class="skip-hint" id="skipHint">tap or press any key to skip</div>
+  <div class="poi-caption" id="poiCaption"></div>
+  <div class="flavor" id="flavorText"></div>
+
+  <div class="hud" id="hud">
+    <button class="sound-btn" id="soundBtn">🔊</button>
+    <div class="title-box badge">
+      <div class="t1">EMBERTRAIL</div>
+      <div class="t2">A LIVING TRAIL — SEASONS TURN AS YOU RIDE</div>
+    </div>
+    <div class="compass-wrap badge" id="compassWrap">
+      <div class="compass-center-box"></div>
+    </div>
+    <div class="top-right">
+      <div class="row-badges">
+        <div class="clock badge" id="clockEl">21:40</div>
+        <div class="weather badge" id="weatherEl">
+          <span id="weatherText">❄ Snowfall</span>
+          <span class="drift" id="driftText">first winter</span>
+        </div>
+      </div>
+      <div class="fps" id="fpsEl">60 fps</div>
+    </div>
+    
+    
+    <div class="speed-box badge">
+      <div class="gait-label" id="gaitEl">walk</div>
+      <div class="speed-row">
+        <span class="speed-num" id="speedEl">0</span>
+        <span class="speed-unit">km/h</span>
+      </div>
+      <div class="stamina-track"><div class="stamina-fill" id="staminaFill"></div></div>
+    </div>
+    <div class="hint badge"><b>WASD</b> move &nbsp; <b>Shift</b> gallop &nbsp; <b>Space</b> rear<br><b>drag</b> look &nbsp; <b>scroll</b> zoom</div>
+  </div>
+
+  <div class="dpad" id="dpad">
+    <button class="dbtn up" data-k="w">▲</button>
+    <button class="dbtn left" data-k="a">◀</button>
+    <button class="dbtn right" data-k="d">▶</button>
+    <button class="dbtn down" data-k="s">▼</button>
+  </div>
+  <button class="gbtn" id="gallopBtn">GALLOP</button>
+  <button class="rbtn" id="rearBtn">REAR</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

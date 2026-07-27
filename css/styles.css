@@ -1,0 +1,171 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:#05070c;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+}
+#canvas-wrap { position:fixed; inset:0; }
+canvas { display:block; cursor:grab; }
+canvas:active { cursor:grabbing; }
+
+#loadingScreen {
+  position:fixed; inset:0; background:#0a0e16; color:#e8ecf3;
+  display:flex; flex-direction:column; gap:10px;
+  align-items:center; justify-content:center;
+  font-size:13px; letter-spacing:3px; z-index:100;
+  transition:opacity .8s ease;
+}
+#loadingScreen .sub { font-size:9px; opacity:0.4; letter-spacing:2px; }
+
+.vignette {
+  position:fixed; inset:0; pointer-events:none; z-index:5;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.42) 100%);
+}
+
+.hud {
+  position:fixed; inset:0; pointer-events:none; color:#fff;
+  user-select:none; z-index:10; transition:opacity .8s ease;
+}
+.badge {
+  background:rgba(15,18,26,0.55);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,0.12); border-radius:10px;
+}
+
+.title-box { position:absolute; top:16px; left:16px; padding:9px 15px; }
+.title-box .t1 { font-size:15px; font-weight:700; letter-spacing:0.5px; }
+.title-box .t2 { font-size:9px; letter-spacing:2.5px; opacity:0.5; margin-top:3px; }
+
+.compass-wrap {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  width:260px; height:34px; overflow:hidden;
+}
+.compass-wrap span {
+  position:absolute; top:0; height:100%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; letter-spacing:1px; color:#c7cedb;
+  transition:opacity .15s, color .15s;
+}
+.compass-center-box {
+  position:absolute; left:50%; top:4px; bottom:4px; width:52px;
+  transform:translateX(-50%);
+  border:1px solid rgba(255,255,255,0.35); border-radius:7px;
+}
+
+.top-right {
+  position:absolute; top:16px; right:16px;
+  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+}
+.row-badges { display:flex; gap:8px; }
+.clock, .weather { font-size:13px; font-weight:600; padding:8px 14px; }
+.weather { display:flex; flex-direction:column; align-items:flex-end; gap:1px; }
+.weather .drift { font-size:9px; font-weight:500; opacity:0.55; letter-spacing:0.5px; }
+.fps { font-size:10px; opacity:0.4; padding:2px 4px; letter-spacing:0.5px; }
+
+.speed-box {
+  position:absolute; bottom:22px; right:20px; padding:9px 16px;
+  display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+}
+.speed-row { display:flex; align-items:baseline; gap:6px; }
+.speed-num { font-size:26px; font-weight:700; }
+.speed-unit { font-size:11px; opacity:0.55; letter-spacing:1px; }
+.gait-label { font-size:9px; letter-spacing:2px; opacity:0.6; text-transform:uppercase; }
+.stamina-track {
+  width:120px; height:5px; border-radius:3px;
+  background:rgba(255,255,255,0.15); overflow:hidden;
+}
+.stamina-fill {
+  height:100%; width:100%; background:#6fdc8c;
+  transition:background .3s; border-radius:3px;
+}
+
+.hint {
+  position:absolute; bottom:20px; left:20px; font-size:11px;
+  padding:8px 12px; letter-spacing:0.2px;
+  color:rgba(255,255,255,0.6); line-height:1.5;
+}
+.hint b { color:#ffffff; font-weight:700; }
+
+.dpad {
+  position:fixed; left:18px; bottom:90px;
+  width:150px; height:150px; z-index:20; pointer-events:auto;
+}
+.dbtn {
+  position:absolute; width:48px; height:48px; border-radius:10px;
+  background:rgba(15,18,26,0.55); backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,0.18); color:#fff; font-size:16px;
+  touch-action:none; appearance:none; cursor:pointer;
+}
+.dbtn.up { left:51px; top:0; }
+.dbtn.down { left:51px; top:100px; }
+.dbtn.left { left:0; top:50px; }
+.dbtn.right { left:102px; top:50px; }
+
+.gbtn {
+  position:fixed; right:20px; bottom:100px;
+  width:64px; height:64px; border-radius:50%;
+  background:rgba(255,140,80,0.25); backdrop-filter:blur(6px);
+  border:1px solid rgba(255,180,120,0.4); color:#fff;
+  font-size:10px; letter-spacing:1px; z-index:20; pointer-events:auto;
+}
+.rbtn {
+  position:fixed; right:96px; bottom:110px;
+  width:46px; height:46px; border-radius:50%;
+  background:rgba(120,150,255,0.2); backdrop-filter:blur(6px);
+  border:1px solid rgba(180,200,255,0.35); color:#fff;
+  font-size:9px; letter-spacing:0.5px; z-index:20; pointer-events:auto;
+}
+
+.climate-btn {
+  position:absolute; top:16px; right:16px; margin-top:78px;
+  padding:7px 13px; font-size:10.5px; letter-spacing:1px; color:#fff;
+  background:rgba(255,150,190,0.18);
+  border:1px solid rgba(255,180,205,0.4); border-radius:9px;
+  cursor:pointer; pointer-events:auto; transition:background .2s;
+}
+.climate-btn:hover { background:rgba(255,150,190,0.32); }
+.climate-btn:active { transform:scale(0.97); }
+
+.letterbox {
+  position:fixed; left:0; right:0; height:9vh; background:#000;
+  z-index:50; pointer-events:none; transition:opacity 1.1s ease;
+}
+.letterbox.top { top:0; }
+.letterbox.bottom { bottom:0; }
+
+.skip-hint {
+  position:fixed; bottom:14px; right:18px; z-index:51;
+  color:rgba(255,255,255,0.65); font-size:11px; letter-spacing:1.5px;
+  pointer-events:none; transition:opacity .6s ease;
+}
+
+.poi-caption {
+  position:fixed; top:19vh; left:50%; transform:translateX(-50%);
+  z-index:11; color:#fff; font-size:19px; font-weight:600;
+  letter-spacing:1.5px; text-shadow:0 2px 14px rgba(0,0,0,0.6);
+  opacity:0; pointer-events:none; transition:opacity 1.1s ease;
+}
+.flavor {
+  position:fixed; bottom:18vh; left:50%; transform:translateX(-50%);
+  z-index:11; color:rgba(255,255,255,0.9); font-size:13px;
+  letter-spacing:0.8px; text-shadow:0 2px 10px rgba(0,0,0,0.7);
+  opacity:0; pointer-events:none; transition:opacity 0.9s ease;
+  max-width:80vw; text-align:center;
+}
+
+.sound-btn {
+  position:absolute; top:16px; left:16px; margin-top:56px;
+  width:38px; height:38px; padding:0; font-size:16px; color:#fff;
+  background:rgba(15,18,26,0.55); backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,0.18); border-radius:9px;
+  cursor:pointer; pointer-events:auto;
+}
+
+@media (max-width:640px) {
+  .compass-wrap { width:180px; }
+  .title-box { padding:6px 10px; }
+  .title-box .t1 { font-size:12px; }
+  .title-box .t2 { display:none; }
+  .hint { display:none; }
+}
+ 
