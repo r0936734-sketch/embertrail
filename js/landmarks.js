@@ -124,6 +124,55 @@ export function createLandmarks(scene, terrainHeight) {
   crownA.rotation.z = 0.26;
   twGroup.add(crownA);
 
+  // A proper lookout deck gives the ruined silhouette a readable purpose.
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.25, 0.28, 8), baseMat);
+  deck.position.y = 9.1;
+  twGroup.add(deck);
+  for (let i = 0; i < 8; i++) {
+    if (i === 1 || i === 2) continue; // collapsed section beside the broken crown
+    const angle = (i / 8) * Math.PI * 2;
+    const battlement = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.9, 0.72), stoneMat);
+    battlement.position.set(Math.sin(angle) * 1.85, 9.7, Math.cos(angle) * 1.85);
+    battlement.rotation.y = -angle;
+    twGroup.add(battlement);
+  }
+
+  // Doorway, worn steps, and a banner make the tower feel inhabited rather
+  // than just a bare cylinder in the distance.
+  const doorway = new THREE.Mesh(
+    new THREE.BoxGeometry(0.82, 1.45, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0x171411 })
+  );
+  doorway.position.set(0, 0.82, 1.98);
+  twGroup.add(doorway);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.24, 0.28), baseMat);
+  lintel.position.set(0, 1.6, 1.9);
+  twGroup.add(lintel);
+  for (let i = 0; i < 6; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.2, 0.58), baseMat);
+    step.position.set(0, 0.1 + i * 0.11, 3.75 - i * 0.35);
+    twGroup.add(step);
+  }
+  const bannerMat = new THREE.MeshStandardMaterial({ color: 0x8e3f2d, roughness: 0.9, side: THREE.DoubleSide, flatShading: true });
+  const bannerPole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 2.6, 6), darkWood);
+  bannerPole.position.set(-1.9, 8.1, 0.2);
+  bannerPole.rotation.z = -0.12;
+  twGroup.add(bannerPole);
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.2, 1, 2), bannerMat);
+  banner.position.set(-1.82, 7.9, 0.2);
+  banner.rotation.y = Math.PI / 2;
+  twGroup.add(banner);
+
+  // A small beacon makes the tower a nighttime landmark without hiding its
+  // ruined character during the day.
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffb24f, transparent: true, opacity: 0.9 });
+  const towerBeacon = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.62, 6), beaconMat);
+  towerBeacon.position.set(-0.3, 9.65, 0.2);
+  twGroup.add(towerBeacon);
+  const towerBeaconLight = new THREE.PointLight(0xffa34f, 1.2, 15, 2);
+  towerBeaconLight.position.set(-0.3, 9.9, 0.2);
+  twGroup.add(towerBeaconLight);
+
   // moss patches on shaft
   [0, 2, 1.82, 0, 5, 1.75, -0.8, 7.5, 1.72].forEach((v, idx) => {
     if (idx % 3 === 2) return; // skip every 3rd (z already set)
@@ -398,6 +447,9 @@ export function createLandmarks(scene, terrainHeight) {
 
     // candle flicker
     candleLight.intensity = 0.5 + Math.sin(t * 7 + 0.8) * 0.12;
+    const beaconFlicker = 0.9 + Math.sin(t * 6.5) * 0.12 + Math.sin(t * 13.2 + 1) * 0.08;
+    towerBeacon.scale.set(beaconFlicker, beaconFlicker * 1.2, beaconFlicker);
+    towerBeaconLight.intensity = 1.15 + Math.sin(t * 6.5) * 0.18;
   }
 
   return { poiList, update, WF_POS, TW_POS, BR_POS, HM_POS, PD_POS };

@@ -1,4 +1,4 @@
-export function createUI(player) {
+export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) {
   const clockEl = document.getElementById('clockEl');
   const speedEl = document.getElementById('speedEl');
   const fpsEl = document.getElementById('fpsEl');
@@ -51,8 +51,8 @@ export function createUI(player) {
     }
   }
 
-  // POIs
-  const pois = [
+  // Camp locations and landmark POIs share one discovery system.
+  const localPois = [
     { name: 'Camp by the Embers', x: 0, z: 0, r: 9, flavor: 'Warm firelight. The valley begins here.' },
     { name: 'The Blossom Grove', x: -34, z: 24, r: 18, flavor: 'Petals drift on the wind. A quiet place to rest.' },
     { name: 'Cabins at Trail’s End', x: 19, z: 11, r: 11, flavor: 'Smoke rises from the chimneys. Someone still lives here.' },
@@ -60,9 +60,22 @@ export function createUI(player) {
     { name: 'Northern Pines', x: -55, z: -30, r: 14, flavor: 'Tall dark pines. The deer watch from the shadows.' },
     { name: 'Eastern Meadow', x: 48, z: 28, r: 13, flavor: 'Open grass. Rabbits scatter at the sound of hooves.' }
   ];
+  const pois = [
+    ...localPois,
+    ...landmarkPois.map(p => ({
+      name: p.name,
+      x: p.pos.x,
+      z: p.pos.z,
+      r: p.r,
+      flavor: p.flavor,
+      onDiscover: p.onDiscover
+    }))
+  ];
 
   let currentPOI = null;
   let flavorTimer = 0;
+  const discovered = new Set();
+  const firedEvents = new Set();
 
   function updatePOI(dt, playerPos) {
     let found = null;
@@ -79,11 +92,17 @@ export function createUI(player) {
       const el = document.getElementById('poiCaption');
       const fl = document.getElementById('flavorText');
       if (found) {
+        discovered.add(found.name);
+        if (found.onDiscover && !firedEvents.has(found.onDiscover)) {
+          firedEvents.add(found.onDiscover);
+          onDiscoverEvent(found.onDiscover);
+        }
         el.textContent = found.name;
         el.style.opacity = '1';
         fl.textContent = found.flavor || '';
         fl.style.opacity = '1';
         flavorTimer = 5.5;
+        refreshTracker();
       } else {
         el.style.opacity = '0';
         fl.style.opacity = '0';
@@ -97,12 +116,43 @@ export function createUI(player) {
     }
   }
 
+  const trackerEl = document.createElement('div');
+  trackerEl.id = 'progressTracker';
+  Object.assign(trackerEl.style, {
+    position: 'fixed', left: '20px', top: '50%', transform: 'translateY(-50%)',
+    padding: '10px 14px', background: 'rgba(15,18,26,0.5)',
+    backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+    border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px',
+    color: '#fff', fontSize: '11px', letterSpacing: '0.04em', lineHeight: '1.8',
+    zIndex: '10', pointerEvents: 'none', opacity: '0.9'
+  });
+  document.body.appendChild(trackerEl);
+
+  let lastSpeciesFound = 0;
+  let lastSpeciesTotal = 0;
+  function refreshTracker() {
+    trackerEl.innerHTML =
+      '<div style="opacity:0.6;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px">Places found</div>' +
+      `<div style="font-weight:700;font-size:14px;margin-bottom:6px">${discovered.size} / ${pois.length}</div>` +
+      (lastSpeciesTotal > 0
+        ? '<div style="opacity:0.6;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px">Species observed</div>' +
+          `<div style="font-weight:700;font-size:14px">${lastSpeciesFound} / ${lastSpeciesTotal}</div>`
+        : '');
+  }
+  refreshTracker();
+
   let frameAccum = 0;
   let frameTimer = 0;
 
-  function update(dt, player, climate) {
+  function update(dt, player, climate, speciesProgress) {
     updateCompass(player.heading);
     updatePOI(dt, player.group.position);
+
+    if (speciesProgress && (speciesProgress.found !== lastSpeciesFound || speciesProgress.total !== lastSpeciesTotal)) {
+      lastSpeciesFound = speciesProgress.found;
+      lastSpeciesTotal = speciesProgress.total;
+      refreshTracker();
+    }
 
     const hh = Math.floor(climate.gameMinutes / 60);
     const mm = Math.floor(climate.gameMinutes % 60);
@@ -123,5 +173,10 @@ export function createUI(player) {
     }
   }
 
-  return { update };
+  return {
+    update,
+    get discoveredCount() { return discovered.size; },
+    get totalPois() { return pois.length; },
+    isDiscovered(name) { return discovered.has(name); }
+  };
 }

@@ -64,6 +64,7 @@ export function createClimate(deps) {
   let seasonT = 0;
   let seasonDurations = [70, 70, 80, 70];
   let gameMinutes = 21 * 60 + 40;
+  let lastDayAmt = 1;
 
   function recomputeSeasonDurations() {
     seasonDurations[0] = THREE.MathUtils.lerp(70, 40, climateWarming);
@@ -154,6 +155,7 @@ export function createClimate(deps) {
     moonLight.position.copy(moon.position);
 
     const dayAmt = THREE.MathUtils.smoothstep(sunHeight, -0.15, 0.35);
+    lastDayAmt = dayAmt;
     const duskAmt = 1 - Math.min(1, Math.abs(sunHeight) / 0.3);
 
     sunLight.intensity = dayAmt * 1.08;
@@ -199,6 +201,7 @@ export function createClimate(deps) {
       return seasonNames[seasonIdx];
     },
     get gameMinutes() { return gameMinutes; },
-    get climateWarming() { return climateWarming; }
+    get climateWarming() { return climateWarming; },
+    get dayAmt() { return lastDayAmt; }
   };
 }

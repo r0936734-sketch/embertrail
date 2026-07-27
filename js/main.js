@@ -10,6 +10,13 @@ import { createPlayer } from './player.js';
 import { createClimate } from './climate.js';
 import { createUI } from './ui.js';
 import { createIntro } from './intro.js';
+import { createLandmarks } from './landmarks.js';
+import { createCollectibles } from './collectibles.js';
+import { createFireflies } from './fireflies.js';
+import { createWeather } from './weather.js';
+import { createConstellations } from './constellations.js';
+import { createSoundscape } from './soundscape.js';
+import { createBinoculars } from './binoculars.js';
 
 (function () {
   'use strict';
@@ -33,6 +40,16 @@ import { createIntro } from './intro.js';
   const vegetation = createVegetation(scene, terrain.terrainHeight);
   const structures = createStructures(scene, terrain.terrainHeight);
   const wildlife = createWildlife(scene, terrain.terrainHeight);
+  const landmarks = createLandmarks(scene, terrain.terrainHeight);
+  const collectibles = createCollectibles(scene, terrain.terrainHeight);
+  const fireflies = createFireflies(scene, terrain.terrainHeight);
+  const weather = createWeather(scene);
+  const constellations = createConstellations(scene, starsMat);
+  const soundscape = createSoundscape(audio, {
+    ridge: { x: 95, z: -72 },
+    waters: [{ x: 52, z: 36 }, { x: -62, z: -48 }, { x: 0, z: 0 }],
+    meadow: { x: 48, z: 28 }
+  });
 
   // houses / points of interest
   const house = createHouse(scene, terrain.terrainHeight);
@@ -66,7 +83,31 @@ import { createIntro } from './intro.js';
     mountains
   });
 
-  const ui = createUI(player);
+  const ui = createUI(player, landmarks.poiList, key => {
+    if (key !== 'climbUnlock') return;
+    player.unlockClimb();
+    const toast = document.createElement('div');
+    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
+    Object.assign(toast.style, {
+      position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
+      color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
+      borderRadius: '10px', fontSize: '14px', maxWidth: '70vw', textAlign: 'center',
+      zIndex: 60, opacity: '0', transition: 'opacity 0.6s'
+    });
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 700);
+    }, 4500);
+  });
+  const binocularPois = [
+    ...landmarks.poiList.map(p => ({ name: p.name, x: p.pos.x, z: p.pos.z })),
+    { name: 'Sunveil Ridge', x: 95, z: -72 },
+    { name: 'Northern Pines', x: -55, z: -30 },
+    { name: 'Eastern Meadow', x: 48, z: 28 }
+  ];
+  const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
 
   // ---------- input ----------
@@ -182,24 +223,43 @@ import { createIntro } from './intro.js';
     elapsed += dt;
     windAngle += dt * 0.05;
     const windX = Math.sin(windAngle) * 1.1;
+    const isSummer = climate.getSeasonName() === 'summer';
 
     if (intro.active) {
       intro.update(dt);
     } else {
-      const isSummer = climate.getSeasonName() === 'summer';
       structures.updateFire(elapsed, isSummer);
 
-      // skip normal movement while the player is resting inside the house
-      if (!house.resting) player.update(dt, keys, structures.fireGroup);
-      player.updateCamera(dt, elapsed, camera, camYawOffset, camPitch, camDist);
-      // house needs per-frame updates (smoke, UI prompts, stamina restore)
+      // The cabin owns E while close to its door; elsewhere E keeps its
+      // normal mount/dismount behaviour in the player controller.
+      if (keys['e'] && house.tryInteract(player)) keys['e'] = false;
+
+      if (!house.resting) {
+        player.update(dt, keys, structures.fireGroup);
+        // Third-person games naturally settle the camera behind the character
+        // when movement starts, even if the player had been looking sideways.
+        if (Math.abs(player.speed) > 0.15) {
+          camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
+        }
+        player.updateCamera(dt, elapsed, camera, camYawOffset, camPitch, camDist);
+      } else {
+        house.updateInteriorCamera(dt, elapsed, camera);
+      }
+      // House updates its door, interior UI, and stamina restoration.
       house.update(dt, elapsed, player);
     }
 
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
-    ui.update(dt, player, climate);
+    landmarks.update(dt, elapsed, isSummer);
+    const speciesProgress = collectibles.update(dt, elapsed, player.group.position, landmarks.PD_POS);
     climate.update(dt, elapsed);
+    fireflies.update(dt, elapsed, 1 - climate.dayAmt);
+    weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
+    constellations.update(dt, camera, 1 - climate.dayAmt);
+    soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
+    binoculars.update(dt, camera, player.group.position, name => ui.isDiscovered(name));
+    ui.update(dt, player, climate, speciesProgress);
 
     vegetation.clouds.forEach(c => {
       c.position.x += c.userData.drift * dt;

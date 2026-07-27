@@ -244,6 +244,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   let walkLean = 0;
   let walkForwardLean = 0;
   let idleTime = 0;
+  let climbUnlocked = false;
 
   const legPhaseOffsets = [0, Math.PI, Math.PI * 0.9, -0.1];
 
@@ -455,7 +456,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       else if (keys['s'] || keys['arrowdown']) acc = -0.6;
 
       if (acc !== 0) {
-        speed = THREE.MathUtils.clamp(speed + acc * 8 * dt, -walkSpeed * 0.6, walkSpeed);
+        const sprinting = climbUnlocked && keys['shift'];
+        const cap = walkSpeed * (sprinting ? 1.8 : 1);
+        speed = THREE.MathUtils.clamp(speed + acc * 8 * dt, -walkSpeed * 0.6, cap);
       } else {
         speed *= Math.max(0, 1 - dt * 6);
       }
@@ -554,7 +557,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       const { sx, sz } = terrainNormalApprox(player.position.x, player.position.z);
       const facing = { x: Math.sin(heading), z: Math.cos(heading) };
       const slopeAlong = -(sx * facing.x + sz * facing.z);
-      speed += slopeAlong * 6.5 * dt;
+      speed += slopeAlong * (climbUnlocked ? 3.2 : 6.5) * dt;
       speed = THREE.MathUtils.clamp(speed, -maxWalk * 0.6, maxGallop);
 
       const targetBank = -turnInput * speedRatio * 0.32;
@@ -640,6 +643,26 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const camTarget = new THREE.Vector3();
   const baseFov = 55;
 
+  // Raise the camera enough that the entire line between the player and the
+  // camera stays above the terrain. Sampling the path prevents the camera
+  // from cutting through a ridge while descending a steep slope.
+  function keepCameraAboveTerrain(follow, desiredCameraPos) {
+    const lookY = follow.position.y + 2.2;
+    let safeY = desiredCameraPos.y;
+    const samples = 10;
+    for (let i = 1; i <= samples; i++) {
+      const t = i / samples;
+      const x = THREE.MathUtils.lerp(follow.position.x, desiredCameraPos.x, t);
+      const z = THREE.MathUtils.lerp(follow.position.z, desiredCameraPos.z, t);
+      const requiredY = terrainHeight(x, z) + 1.6;
+      const lineY = THREE.MathUtils.lerp(lookY, safeY, t);
+      if (lineY < requiredY) {
+        safeY = Math.max(safeY, lookY + (requiredY - lookY) / t);
+      }
+    }
+    desiredCameraPos.y = safeY;
+  }
+
   function updateCamera(dt, t, camera, camYawOffset, camPitch, camDist) {
     const follow = mounted ? player : walker;
     const speedRatio = mounted
@@ -656,11 +679,19 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     const cy = follow.position.y + 2.4 + camDist * Math.sin(camPitch);
 
     camPos.set(cx, cy, cz);
+    keepCameraAboveTerrain(follow, camPos);
     camera.position.lerp(camPos, Math.min(1, dt * 5));
 
     const shake = speedRatio * speedRatio * 0.05;
     camera.position.x += Math.sin(t * 23) * shake;
     camera.position.y += Math.sin(t * 31 + 1.4) * shake * 0.6;
+
+    // The smoothing and movement shake can briefly leave the camera below a
+    // newly reached slope, so clamp its final position as a safeguard.
+    camera.position.y = Math.max(
+      camera.position.y,
+      terrainHeight(camera.position.x, camera.position.z) + 1.6
+    );
 
     camTarget.set(follow.position.x, follow.position.y + 2.2, follow.position.z);
     camera.lookAt(camTarget);
@@ -668,12 +699,21 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
 
   return {
     group: player,
+    get position() { return mounted ? player.position : walker.position; },
     get speed() { return speed; },
     get heading() { return mounted ? heading : walker.rotation.y; },
     get stamina() { return stamina; },
     get gaitName() { return currentGaitName(Math.abs(speed)); },
     get mounted() { return mounted; },
     get sitting() { return sitting; },
+    get climbUnlocked() { return climbUnlocked; },
+    unlockClimb() { climbUnlocked = true; },
+    setInside(value) {
+      if (mounted) return;
+      walker.visible = !value;
+      speed = 0;
+    },
+    restoreStamina(amount) { stamina = Math.min(staminaMax, stamina + amount); },
     triggerRear,
     update,
     updateCamera

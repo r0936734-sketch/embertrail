@@ -112,6 +112,26 @@ export function createTerrain(scene) {
   const cLush = new THREE.Color(0x445a2e);  // damp, dense growth
   const cPath = new THREE.Color(0xab8f66);  // worn dirt near camp/trails
 
+  const pathHubs = [
+    { x: 0, z: 0 }, { x: -34, z: 24 }, { x: 19, z: 11 }, { x: 46, z: -22 },
+    { x: 60, z: -36 }, { x: 48, z: 28 }, { x: 52, z: 36 }, { x: -62, z: -48 }, { x: -80, z: -55 }
+  ];
+  const pathSegments = [
+    [pathHubs[0], pathHubs[1]], [pathHubs[0], pathHubs[2]], [pathHubs[2], pathHubs[3]],
+    [pathHubs[3], pathHubs[4]], [pathHubs[0], pathHubs[5]], [pathHubs[5], pathHubs[6]],
+    [pathHubs[0], pathHubs[7]], [pathHubs[7], pathHubs[8]]
+  ];
+  function distToSegment(px, pz, a, b) {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz || 1;
+    let t = ((px - a.x) * dx + (pz - a.z) * dz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = a.x + t * dx;
+    const cz = a.z + t * dz;
+    return Math.hypot(px - cx, pz - cz);
+  }
+
   const _mix = new THREE.Color();
 
   for (let i = 0; i < gPos.count; i++) {
@@ -136,9 +156,14 @@ export function createTerrain(scene) {
     const rockT = THREE.MathUtils.clamp((slope - 0.55) / 1.1, 0, 1);
     if (rockT > 0) _mix.lerp(cRock, rockT * 0.85);
 
-    // worn dirt path radiating from the camp clearing at the origin
+    // Worn trails link the camp to the major points of interest.
     const dCamp = Math.sqrt(x * x + z * z);
-    const pathT = 1 - THREE.MathUtils.smoothstep(dCamp, 6, 15);
+    let trailD = Infinity;
+    for (const [a, b] of pathSegments) trailD = Math.min(trailD, distToSegment(x, z, a, b));
+    const pathT = Math.max(
+      1 - THREE.MathUtils.smoothstep(dCamp, 6, 15),
+      1 - THREE.MathUtils.smoothstep(trailD, 1.4, 4.2)
+    );
     if (pathT > 0) _mix.lerp(cPath, pathT * 0.6);
 
     // tiny per-vertex speckle so large flat stretches don't look flat-shaded/plasticky
