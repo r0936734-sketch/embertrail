@@ -1,6 +1,7 @@
 import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
 import { createScene } from './scene.js';
 import { createTerrain } from './terrain.js';
+import { createTelevision } from './television.js';
 import { createCollisionSystem } from './collision.js';
 import { createMountains } from './mountains.js';
 import { createVegetation } from './vegetation.js';
@@ -99,6 +100,20 @@ import { createQuests } from './quests.js';
 
   house.setSleepCallback(() => climate.sleep());
 
+  // ---------- television (inside the cabin) ----------
+  // These must match the position passed to createHouse (default is
+  // { x: 21, z: 12 } — see house.js) so the TV lines up with the interior room.
+  const housePos = { x: 21, z: 12 };
+  const interiorFloorY = terrain.terrainHeight(housePos.x, housePos.z) - 400;
+
+  const tv = createTelevision(scene, {
+  position: { x: housePos.x - 7.7, y: interiorFloorY + 1.55, z: housePos.z - 1.0 },
+  rotationY: Math.PI / 2,
+  interactRadius: 5,   // how close to show the prompt / press V
+  keepOnRadius: 14,    // how far you can walk before it turns off
+  collision
+});
+
   const traversal = createTraversal(
     scene,
     player,
@@ -179,7 +194,7 @@ import { createQuests } from './quests.js';
     keys[k] = true;
     if (k === 'shift') keys['shift'] = true;
     if (k === 'k') climate.skipSeason();
-    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'f', 'g', 'x', 'i', 'j'].includes(k)) e.preventDefault();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'f', 'g', 'v', 'x', 'i', 'j'].includes(k)) e.preventDefault();
     startAudio(audio);
     if (intro.active) intro.skip();
   });
@@ -286,31 +301,38 @@ import { createQuests } from './quests.js';
   }
 
   function refreshContextButton() {
-    if (!touchControls) return;
-    const prompt = [...document.querySelectorAll('.context-prompt')]
-      .find(el => el.dataset.mobileKey && Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
-    if (!prompt && player.canMount) {
-      contextBtn.textContent = 'MOUNT';
-      contextBtn.dataset.key = 'e';
-      contextBtn.style.display = 'block';
-      return;
-    }
-    if (!prompt) {
-      contextBtn.style.display = 'none';
-      contextBtn.dataset.key = '';
-      return;
-    }
-    const key = prompt.dataset.mobileKey;
-    const promptText = prompt.textContent;
-    let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH' })[key] || 'ACTION';
-    if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
-    if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
-    if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
-    contextBtn.textContent = label || 'ACTION';
-    contextBtn.dataset.key = key;
+  if (!touchControls) return;
+
+  // Prefer the TV prompt if it is visible
+  const prompts = [...document.querySelectorAll('.context-prompt')]
+    .filter(el => el.dataset.mobileKey && Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
+
+  // Priority: TV (v) first, then anything else
+  const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
+
+  if (!prompt && player.canMount) {
+    contextBtn.textContent = 'MOUNT';
+    contextBtn.dataset.key = 'e';
     contextBtn.style.display = 'block';
+    return;
+  }
+  if (!prompt) {
+    contextBtn.style.display = 'none';
+    contextBtn.dataset.key = '';
+    return;
   }
 
+  const key = prompt.dataset.mobileKey;
+  const promptText = prompt.textContent;
+  let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
+  if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
+  if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
+  if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
+  if (key === 'v') label = /turn off/i.test(promptText) ? 'TV OFF' : 'TV';
+  contextBtn.textContent = label || 'ACTION';
+  contextBtn.dataset.key = key;
+  contextBtn.style.display = 'block';
+}
   function refreshMobileButtons() {
     if (!touchControls) return;
     callHorseBtn.style.display = player.mounted ? 'none' : 'block';
@@ -576,6 +598,7 @@ import { createQuests } from './quests.js';
       );
 
       house.update(dt, elapsed, player);
+      tv.update(dt, keys, player.position, camera);
     }
 
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
