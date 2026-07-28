@@ -194,16 +194,23 @@ import { createBinoculars } from './binoculars.js';
     });
   }
 
+  function shapeJoystickInput(value) {
+    const deadZone = 0.16;
+    const magnitude = Math.abs(value);
+    if (magnitude <= deadZone) return 0;
+    const normalized = (magnitude - deadZone) / (1 - deadZone);
+    return Math.sign(value) * normalized * normalized;
+  }
+
   function setJoystickDirection(dx, dy) {
-    const threshold = 0.24;
-    keys.w = dy < -threshold;
-    keys.s = dy > threshold;
-    keys.a = dx < -threshold;
-    keys.d = dx > threshold;
+    // Keep the joystick analog: a small sideways tilt now makes a small turn.
+    keys.joyForward = -shapeJoystickInput(dy);
+    keys.joyTurn = -shapeJoystickInput(dx);
   }
 
   function resetJoystick() {
-    keys.w = keys.a = keys.s = keys.d = false;
+    keys.joyForward = 0;
+    keys.joyTurn = 0;
     joystickKnob.style.transform = 'translate(-50%, -50%)';
   }
 

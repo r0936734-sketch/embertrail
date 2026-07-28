@@ -283,7 +283,7 @@ canvas:active { cursor:grabbing; }
   }
   body.touch-controls .mobile-quick-btn { height:30px; border-radius:15px; font-size:7px; }
   body.touch-controls .mobile-sensitivity {
-    display:block; right:max(12px, env(safe-area-inset-right)); bottom:max(220px, calc(env(safe-area-inset-bottom) + 204px));
+    display:block; top:max(43px, calc(env(safe-area-inset-top) + 35px)); right:max(10px, env(safe-area-inset-right)); bottom:auto;
     width:122px; padding:5px 7px 6px;
   }
   body.touch-controls .mobile-zoom-actions {

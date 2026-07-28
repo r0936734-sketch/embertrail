@@ -535,7 +535,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     // ---------- walking mode ----------
     if (!mounted) {
       let acc = 0;
-      if (keys['w'] || keys['arrowup']) acc = 1;
+      const joystickDrive = Number(keys.joyForward) || 0;
+      if (Math.abs(joystickDrive) > 0.001) acc = joystickDrive;
+      else if (keys['w'] || keys['arrowup']) acc = 1;
       else if (keys['s'] || keys['arrowdown']) acc = -0.6;
 
       if (acc !== 0) {
@@ -547,8 +549,10 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       }
 
       let turn = 0;
-      if (keys['a'] || keys['arrowleft']) turn = 1;
-      if (keys['d'] || keys['arrowright']) turn = -1;
+      const joystickTurn = Number(keys.joyTurn) || 0;
+      if (Math.abs(joystickTurn) > 0.001) turn = joystickTurn;
+      else if (keys['a'] || keys['arrowleft']) turn = 1;
+      else if (keys['d'] || keys['arrowright']) turn = -1;
       heading += turn * 2.8 * dt;
 
       walker.rotation.y = heading;
@@ -625,7 +629,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       if (rearTimer <= 0) rearing = false;
     } else {
       let accInput = 0;
-      if (keys['w'] || keys['arrowup']) accInput = 1;
+      const joystickDrive = Number(keys.joyForward) || 0;
+      if (Math.abs(joystickDrive) > 0.001) accInput = joystickDrive;
+      else if (keys['w'] || keys['arrowup']) accInput = 1;
       else if (keys['s'] || keys['arrowdown']) accInput = -0.55;
 
       const galloping = keys['shift'] && accInput > 0 && stamina > 1;
@@ -643,8 +649,10 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       if (stamina <= 0.5 && speed > maxCanter) speed = maxCanter;
 
       let turnInput = 0;
-      if (keys['a'] || keys['arrowleft']) turnInput = 1;
-      if (keys['d'] || keys['arrowright']) turnInput = -1;
+      const joystickTurn = Number(keys.joyTurn) || 0;
+      if (Math.abs(joystickTurn) > 0.001) turnInput = joystickTurn;
+      else if (keys['a'] || keys['arrowleft']) turnInput = 1;
+      else if (keys['d'] || keys['arrowright']) turnInput = -1;
 
       const speedRatio = THREE.MathUtils.clamp(Math.abs(speed) / maxGallop, 0, 1);
       const idleFactor = THREE.MathUtils.clamp(Math.abs(speed) / 1.4, 0, 1);
