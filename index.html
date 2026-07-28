@@ -58,8 +58,9 @@
     <div class="hint badge" aria-label="Keyboard controls">
       <div class="hint-title">CONTROLS</div>
       <div><b>WASD / Arrows</b> move &nbsp; <b>Shift</b> gallop / sprint after tower unlock &nbsp; <b>Space</b> jump (on foot) / rear (mounted)</div>
-      <div><b>E</b> mount, dismount, interact, sleep &nbsp; <b>H</b> call horse &nbsp; <b>F</b> sit by a fire</div>
-      <div><b>G</b> collect &nbsp; <b>C</b> fish at the pond &nbsp; <b>J</b> trail sketchbook</div>
+      <div><b>E</b> mount, dismount, interact, sleep &nbsp; <b>H</b> call horse &nbsp; <b>T</b> sit by a fire</div>
+      <div><b>F</b> hold / release bow &nbsp; <b>G</b> collect &nbsp; <b>C</b> fish at the pond &nbsp; <b>O</b> trail sketchbook</div>
+      <div><b>X</b> craft arrows &nbsp; <b>I</b> pouch &nbsp; <b>J</b> bounty list</div>
       <div><b>B</b> binoculars at the ridge &nbsp; <b>L</b> name constellations &nbsp; <b>K</b> change season</div>
       <div><b>R</b> climb the watchtower / grab or release the ropeway</div>
       <div><b>Drag</b> look &nbsp; <b>Wheel</b> zoom &nbsp; <b>Double-click</b> fullscreen</div>
@@ -82,6 +83,13 @@
     <button class="mobile-quick-btn" id="callHorseBtn" type="button">CALL</button>
     <button class="mobile-quick-btn" id="dismountBtn" type="button">DISMOUNT</button>
     <button class="mobile-quick-btn" id="seasonBtn" type="button">SEASON</button>
+    <button class="mobile-quick-btn" id="bowBtn" type="button">AIM</button>
+  </div>
+  <button class="mobile-activity-toggle" id="activityToggle" type="button" aria-expanded="false">ACT</button>
+  <div class="mobile-activity-menu" id="mobileActivityMenu" aria-label="Activities">
+    <button class="mobile-quick-btn" id="craftBtn" type="button">CRAFT</button>
+    <button class="mobile-quick-btn" id="pouchBtn" type="button">POUCH</button>
+    <button class="mobile-quick-btn" id="questsBtn" type="button">QUESTS</button>
   </div>
   <div class="mobile-sensitivity" id="mobileSensitivity" aria-label="Look sensitivity">
     <label for="sensitivitySlider" id="sensitivityValue">LOOK 100%</label>

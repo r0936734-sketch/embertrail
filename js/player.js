@@ -317,6 +317,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   let indoorCameraBounds = null;
   let traversalPose = 'none';
   let binocularsRaised = false;
+  let archeryActive = false;
+  let archeryDraw = 0;
+  let archeryYaw = null;
   let groundHeightFn = terrainHeight;
   const GRAVITY = 22;
   const JUMP_SPEED = 7.4;
@@ -464,6 +467,14 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   }
 
   function update(dt, keys, fireGroup) {
+    if (archeryActive) {
+      // Aiming is a planted stance: avoid a walking cycle fighting the bow pose.
+      keys = {
+        ...keys, shift: false, w: false, a: false, s: false, d: false,
+        arrowup: false, arrowdown: false, arrowleft: false, arrowright: false,
+        joyForward: 0, joyTurn: 0
+      };
+    }
     if (externalControl) return;
     idleTime += dt;
 
@@ -477,9 +488,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       callHorse();
       keys['h'] = false;
     }
-    if (keys['f']) {
+    if (keys['t']) {
       trySit(fireGroup);
-      keys['f'] = false;
+      keys['t'] = false;
     }
     if (keys[' ']) {
       if (mounted) triggerRear();
@@ -782,7 +793,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   function updateSpecialPose(dt, t) {
     const climbing = traversalPose === 'climb';
     const ziplining = traversalPose === 'zipline';
-    const usingBinoculars = binocularsRaised && traversalPose === 'none';
+    const usingBinoculars = binocularsRaised && traversalPose === 'none' && !archeryActive;
 
     walkBinoculars.visible = usingBinoculars && !mounted;
     riderBinoculars.visible = usingBinoculars && mounted;
@@ -804,11 +815,30 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walkLegL.knee.rotation.x = 0.45;
       walkLegR.knee.rotation.x = 0.45;
       walkUpperBody.rotation.x = -0.08;
+    } else if (archeryActive && !mounted) {
+      const d = archeryDraw;
+      poseArm(walkArmL, -1.48 - d * 0.06, 0.06, dt);
+      poseArm(walkArmR, -1.24 - d * 0.10, 0.55 + d * 1.35, dt);
+
+      // The torso turns into the sightline, but the feet stay stable so aiming
+      // cannot feed back into the third-person camera and spin the player.
+      const shoulderTurn = THREE.MathUtils.clamp(archeryYaw || 0, -0.8, 0.8);
+      walkUpperBody.rotation.y += (0.34 + shoulderTurn * 0.45 - walkUpperBody.rotation.y) * Math.min(1, dt * 8);
+      walkUpperBody.rotation.x += ((-0.05 + Math.sin(t * 1.6) * 0.012 * (1 - d)) - walkUpperBody.rotation.x) * Math.min(1, dt * 8);
+      walkUpperBody.rotation.z += (-0.05 - walkUpperBody.rotation.z) * Math.min(1, dt * 8);
+
+      walkLegL.hip.rotation.x += (-0.16 - walkLegL.hip.rotation.x) * Math.min(1, dt * 8);
+      walkLegR.hip.rotation.x += (0.14 - walkLegR.hip.rotation.x) * Math.min(1, dt * 8);
+      walkLegL.knee.rotation.x += (0.18 - walkLegL.knee.rotation.x) * Math.min(1, dt * 8);
+      walkLegR.knee.rotation.x += (0.22 - walkLegR.knee.rotation.x) * Math.min(1, dt * 8);
     } else if (usingBinoculars) {
       const leftArm = mounted ? riderArmL : walkArmL;
       const rightArm = mounted ? riderArmR : walkArmR;
       poseArm(leftArm, -0.95, 1.08, dt);
       poseArm(rightArm, -0.95, 1.08, dt);
+    } else if (Math.abs(walkUpperBody.rotation.y) > 0.001) {
+      // Release the archery shoulder twist so walking resumes naturally.
+      walkUpperBody.rotation.y += (0 - walkUpperBody.rotation.y) * Math.min(1, dt * 8);
     }
   }
 
@@ -821,6 +851,35 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
 
     camera.fov = THREE.MathUtils.lerp(camera.fov, baseFov + speedRatio * 9, Math.min(1, dt * 3));
     camera.updateProjectionMatrix();
+
+    if (archeryActive && !mounted) {
+      // A free over-shoulder aim camera. Unlike the regular follow camera it
+      // looks down the sightline rather than back at the player, so arrows
+      // leave the bow and travel through the crosshair direction.
+      const aimYaw = walker.rotation.y + camYawOffset;
+      const aimPitch = THREE.MathUtils.clamp(camPitch - 0.38, -0.85, 0.85);
+      const horizontal = Math.cos(aimPitch);
+      const dirX = Math.sin(aimYaw) * horizontal;
+      const dirY = Math.sin(aimPitch);
+      const dirZ = Math.cos(aimYaw) * horizontal;
+      const rightX = Math.cos(aimYaw);
+      const rightZ = -Math.sin(aimYaw);
+
+      camPos.set(
+        walker.position.x - dirX * 1.75 + rightX * 0.42,
+        walker.position.y + 1.76,
+        walker.position.z - dirZ * 1.75 + rightZ * 0.42
+      );
+      if (!isInside) {
+        camPos.y = Math.max(camPos.y, terrainHeight(camPos.x, camPos.z) + 1.45);
+      }
+      camTarget.set(camPos.x + dirX * 70, camPos.y + dirY * 70, camPos.z + dirZ * 70);
+      camera.fov = THREE.MathUtils.lerp(camera.fov, 48, Math.min(1, dt * 10));
+      camera.updateProjectionMatrix();
+      camera.position.lerp(camPos, Math.min(1, dt * 12));
+      camera.lookAt(camTarget);
+      return;
+    }
 
     if (binocularsRaised) {
       camera.fov = 20;
@@ -907,10 +966,19 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     },
     setTraversalPose(pose) {
       traversalPose = pose || 'none';
-      if (traversalPose !== 'none') binocularsRaised = false;
+      if (traversalPose !== 'none') {
+        binocularsRaised = false;
+        archeryActive = false;
+      }
     },
     setBinocularsActive(active) {
-      binocularsRaised = Boolean(active);
+      binocularsRaised = Boolean(active) && !archeryActive;
+    },
+    setArcheryPose(active, draw = 0, yaw = null) {
+      archeryActive = Boolean(active) && !mounted && traversalPose === 'none' && !sitting && !externalControl;
+      archeryDraw = THREE.MathUtils.clamp(draw, 0, 1);
+      archeryYaw = archeryActive ? yaw : null;
+      if (archeryActive) binocularsRaised = false;
     },
     restoreStamina(amount) { stamina = Math.min(staminaMax, stamina + amount); },
     setExternalControl(value) {
@@ -929,6 +997,10 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       grounded = true;
     },
     get grounded() { return grounded; },
+    get canUseArchery() { return !mounted && !sitting && traversalPose === 'none' && !externalControl; },
+    get archeryActive() { return archeryActive; },
+    getBowHand() { return walkArmL.hand; },
+    getDrawHand() { return walkArmR.hand; },
     triggerRear,
     update,
     updateCamera

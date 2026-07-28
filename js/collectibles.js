@@ -115,10 +115,10 @@ export function createCollectibles(scene, terrainHeight) {
   // ── fishing system ───────────────────────────────────────────────────────
   const fishing = _buildFishing(TYPES, collected, showToast, scene, terrainHeight);
 
-  // ── journal toggle  (J key) ─────────────────────────────────────────────
+  // ── journal toggle  (O key; J is used by the bounty list) ──────────────
   let journalOpen = false;
   window.addEventListener('keydown', e => {
-    if (e.code === 'KeyJ') {
+    if (e.code === 'KeyO') {
       journalOpen = !journalOpen;
       journalEl.style.opacity  = journalOpen ? '1' : '0';
       journalEl.style.pointerEvents = journalOpen ? 'auto' : 'none';
@@ -247,7 +247,7 @@ function _buildJournalEl(TYPES) {
   el.innerHTML = `
     <div style="font-size:16px;font-weight:700;letter-spacing:0.1em;margin-bottom:14px;color:#f0d890">📓 TRAIL SKETCHBOOK</div>
     <div id="journalEntries"></div>
-    <div style="margin-top:12px;color:rgba(243,234,217,0.4);font-size:11px">Press J to close</div>`;
+    <div style="margin-top:12px;color:rgba(243,234,217,0.4);font-size:11px">Press O to close</div>`;
   document.body.appendChild(el);
   _refreshJournal(el, TYPES, new Set());
   return el;

@@ -98,5 +98,9 @@ export function createBinoculars(pois) {
     });
   }
 
-  return { update, get active() { return active; } };
+  function deactivate() {
+    active = false;
+  }
+
+  return { update, deactivate, get active() { return active; } };
 }

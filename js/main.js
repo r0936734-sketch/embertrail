@@ -20,6 +20,12 @@ import { createWeather } from './weather.js';
 import { createConstellations } from './constellations.js';
 import { createSoundscape } from './soundscape.js';
 import { createBinoculars } from './binoculars.js';
+import { createInventory } from './inventory.js';
+import { createArchery } from './archery.js';
+import { createHunting } from './hunting.js';
+import { createRange } from './range.js';
+import { createForage } from './forage.js';
+import { createQuests } from './quests.js';
 
 (function () {
   'use strict';
@@ -129,6 +135,42 @@ import { createBinoculars } from './binoculars.js';
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
 
+  // ---------- hunting / activities ----------
+  const inventory = createInventory(18);
+  const quests = createQuests({ inventory });
+  const archery = createArchery({
+    scene, camera, player,
+    terrainHeight: terrain.terrainHeight,
+    inventory,
+    getAimOffset: () => camYawOffset,
+    onEvent: (type, data) => quests.handleEvent(type, data)
+  });
+  const hunting = createHunting({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    archery, inventory,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'kill') quests.toast(`Clean shot — ${data.type} taken (+${data.points} pts)`);
+    }
+  });
+  const range = createRange({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    archery,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'trialEnd') quests.toast(`Time trial over — ${data.score} points`);
+    },
+    origin: { x: 8, z: 34 }
+  });
+  const forage = createForage({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    inventory,
+    onEvent: (type, data) => quests.handleEvent(type, data)
+  });
+
   // ---------- input ----------
   const keys = {};
   window.addEventListener('keydown', e => {
@@ -136,7 +178,7 @@ import { createBinoculars } from './binoculars.js';
     keys[k] = true;
     if (k === 'shift') keys['shift'] = true;
     if (k === 'k') climate.skipSeason();
-    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'f', 'g', 'x', 'i', 'j'].includes(k)) e.preventDefault();
     startAudio(audio);
     if (intro.active) intro.skip();
   });
@@ -179,6 +221,12 @@ import { createBinoculars } from './binoculars.js';
   const sensitivityValue = document.getElementById('sensitivityValue');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
   const zoomInBtn = document.getElementById('zoomInBtn');
+  const bowBtn = document.getElementById('bowBtn');
+  const activityToggle = document.getElementById('activityToggle');
+  const mobileActivityMenu = document.getElementById('mobileActivityMenu');
+  const craftBtn = document.getElementById('craftBtn');
+  const pouchBtn = document.getElementById('pouchBtn');
+  const questsBtn = document.getElementById('questsBtn');
   const mobileLaunch = document.getElementById('mobileLaunch');
   const mobileLaunchBtn = document.getElementById('mobileLaunchBtn');
   contextBtn.style.display = 'none';
@@ -260,6 +308,7 @@ import { createBinoculars } from './binoculars.js';
     dismountBtn.style.display = player.mounted ? 'block' : 'none';
     gallopBtn.textContent = player.mounted ? 'GALLOP' : 'SPRINT';
     document.getElementById('rearBtn').style.display = player.mounted ? 'block' : 'none';
+    bowBtn.style.display = player.canUseArchery ? 'block' : 'none';
   }
 
   async function launchMobileGame() {
@@ -316,6 +365,35 @@ import { createBinoculars } from './binoculars.js';
       startAudio(audio);
       e.preventDefault();
     });
+    const startBowDraw = e => {
+      keys.f = true;
+      startAudio(audio);
+      e.preventDefault();
+    };
+    const endBowDraw = e => {
+      keys.f = false;
+      e.preventDefault();
+    };
+    bowBtn.addEventListener('pointerdown', startBowDraw);
+    bowBtn.addEventListener('pointerup', endBowDraw);
+    bowBtn.addEventListener('pointerleave', endBowDraw);
+    bowBtn.addEventListener('pointercancel', endBowDraw);
+    activityToggle.addEventListener('pointerdown', e => {
+      const open = mobileActivityMenu.classList.toggle('is-open');
+      activityToggle.setAttribute('aria-expanded', String(open));
+      startAudio(audio);
+      e.preventDefault();
+    });
+    const useActivity = (key, event) => {
+      pulseKey(key);
+      mobileActivityMenu.classList.remove('is-open');
+      activityToggle.setAttribute('aria-expanded', 'false');
+      startAudio(audio);
+      event.preventDefault();
+    };
+    craftBtn.addEventListener('pointerdown', e => useActivity('x', e));
+    pouchBtn.addEventListener('pointerdown', e => useActivity('i', e));
+    questsBtn.addEventListener('pointerdown', e => useActivity('j', e));
     sensitivitySlider.addEventListener('input', e => {
       setLookSensitivity(e.target.value);
     });
@@ -337,7 +415,8 @@ import { createBinoculars } from './binoculars.js';
   } else {
     [
       document.getElementById('dpad'), gallopBtn, document.getElementById('rearBtn'),
-      joystick, contextBtn, document.getElementById('mobileQuickActions'), mobileSensitivity, mobileZoomActions, mobileLaunch
+      joystick, contextBtn, document.getElementById('mobileQuickActions'), mobileSensitivity, mobileZoomActions,
+      bowBtn, activityToggle, mobileActivityMenu, mobileLaunch
     ].forEach(el => { el.style.display = 'none'; });
   }
 
@@ -456,9 +535,16 @@ import { createBinoculars } from './binoculars.js';
       // elsewhere E keeps its normal mount/dismount behaviour.
       if (keys['e'] && house.tryInteract(player)) keys['e'] = false;
 
+      // Update archery first: F then owns the bow draw rather than the nearby-fire sit action.
+      archery.update(dt, keys);
+      if (archery.aiming) binoculars.deactivate();
       player.update(dt, keys, structures.fireGroup);
       traversal.update(dt, keys, player.position);
       player.setBinocularsActive(binoculars.active);
+
+      inventory.update(dt, keys, () => quests.handleEvent('craft'));
+      quests.update(dt, keys);
+      forage.update(dt, keys, player.position);
 
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
@@ -473,6 +559,8 @@ import { createBinoculars } from './binoculars.js';
 
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
+    hunting.update(dt, elapsed, player.position);
+    range.update(dt, camera);
     landmarks.update(dt, elapsed, isSummer);
     waterfall.update(dt, elapsed);
     const dMillpond = Math.hypot(
