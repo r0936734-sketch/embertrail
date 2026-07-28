@@ -3,6 +3,12 @@ html, body {
   width:100%; height:100%; overflow:hidden;
   background:#05070c;
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+}
+button, input, .touch-joystick, .touch-joystick * {
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
 }
 #canvas-wrap { position:fixed; inset:0; }
 canvas { display:block; cursor:grab; }

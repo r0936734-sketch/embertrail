@@ -1,10 +1,19 @@
 // range.js — an archery practice range near camp: three scoring targets with
 // bullseye rings, floating score popups and a 60s time-trial when you hit the
 // gong. Registers its targets with the archery system.
-export function createRange({ scene, terrainHeight, archery, onEvent = () => {}, origin = { x: 8, z: 34 } }) {
+export function createRange({
+  scene, terrainHeight, archery, onEvent = () => {},
+  origin = { x: 95, z: -72 },
+  targetDirection = { x: -0.66, z: 0.75 }
+}) {
   const group = new THREE.Group();
-  group.position.set(origin.x, terrainHeight(origin.x, origin.z), origin.z);
+  const baseY = terrainHeight(origin.x, origin.z);
+  group.position.set(origin.x, baseY, origin.z);
   scene.add(group);
+
+  const laneLength = Math.hypot(targetDirection.x, targetDirection.z) || 1;
+  const lane = { x: targetDirection.x / laneLength, z: targetDirection.z / laneLength };
+  const laneRight = { x: lane.z, z: -lane.x };
 
   const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2c, roughness: 1, flatShading: true });
   const white = new THREE.MeshStandardMaterial({ color: 0xf1ece0, roughness: 1 });
@@ -12,11 +21,51 @@ export function createRange({ scene, terrainHeight, archery, onEvent = () => {},
   const gold = new THREE.MeshStandardMaterial({ color: 0xe8b23c, roughness: 0.5, metalness: 0.5 });
 
   const targets = [];
-  const layout = [[-6, 0], [0, 3], [6, 0]];
+  const layout = [
+    { distance: 28, lateral: -3.5, scale: 1.08 },
+    { distance: 38, lateral: 4.2, scale: 1.02 },
+    { distance: 49, lateral: -5.2, scale: 0.96 },
+    { distance: 61, lateral: 3.6, scale: 0.92 },
+    { distance: 73, lateral: -4.5, scale: 0.88 },
+    { distance: 83, lateral: 5.6, scale: 0.84 },
+    { distance: 92, lateral: -2.2, scale: 0.8 }
+  ];
 
-  layout.forEach(([dx, dz], i) => {
+  function lanePoint(distance, lateral = 0) {
+    return {
+      x: origin.x + lane.x * distance + laneRight.x * lateral,
+      z: origin.z + lane.z * distance + laneRight.z * lateral
+    };
+  }
+
+  function faceTowardShooter(object, worldX, worldZ) {
+    object.rotation.y = Math.atan2(origin.x - worldX, origin.z - worldZ);
+  }
+
+  // A small stable firing deck on the mountain edge.
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.25, 5.2), wood);
+  deck.position.set(0, 0.04, 0);
+  group.add(deck);
+  [-3.25, 3.25].forEach(x => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 1.2, 6), wood);
+    post.position.set(x, 0.62, 1.95);
+    group.add(post);
+  });
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 6.6, 6), wood);
+  rail.rotation.z = Math.PI * 0.5;
+  rail.position.set(0, 1.08, 1.95);
+  group.add(rail);
+
+  layout.forEach(({ distance, lateral, scale }, i) => {
+    const point = lanePoint(distance, lateral);
     const t = new THREE.Group();
-    t.position.set(dx, 0, dz);
+    t.position.set(
+      point.x - origin.x,
+      terrainHeight(point.x, point.z) - baseY,
+      point.z - origin.z
+    );
+    faceTowardShooter(t, point.x, point.z);
+    t.scale.setScalar(scale);
     group.add(t);
 
     [-0.7, 0.7].forEach(o => {
@@ -39,8 +88,8 @@ export function createRange({ scene, terrainHeight, archery, onEvent = () => {},
     const worldPos = () => face.getWorldPosition(center.clone());
 
     archery.register({
-      name: `target-${i}`,
-      radius: 1.05,
+      name: `ridge-target-${i}`,
+      radius: 1.05 * scale,
       getPos: worldPos,
       onHit: (power, at) => {
         const p = worldPos();

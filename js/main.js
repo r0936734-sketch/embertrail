@@ -162,7 +162,8 @@ import { createQuests } from './quests.js';
       quests.handleEvent(type, data);
       if (type === 'trialEnd') quests.toast(`Time trial over — ${data.score} points`);
     },
-    origin: { x: 8, z: 34 }
+    origin: { x: 95, z: -72 },
+    targetDirection: { x: -0.66, z: 0.75 }
   });
   const forage = createForage({
     scene,
@@ -209,6 +210,14 @@ import { createQuests } from './quests.js';
   });
 
   const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  if (touchControls) {
+    document.addEventListener('selectstart', e => {
+      if (e.target.closest('button, .touch-joystick, .mobile-activity-menu')) e.preventDefault();
+    });
+    document.addEventListener('dragstart', e => {
+      if (e.target.closest('button, .touch-joystick, .mobile-activity-menu')) e.preventDefault();
+    });
+  }
   const joystick = document.getElementById('touchJoystick');
   const joystickKnob = document.getElementById('touchJoystickKnob');
   const contextBtn = document.getElementById('contextBtn');
@@ -536,7 +545,7 @@ import { createQuests } from './quests.js';
       if (keys['e'] && house.tryInteract(player)) keys['e'] = false;
 
       // Update archery first: F then owns the bow draw rather than the nearby-fire sit action.
-      archery.update(dt, keys);
+      archery.update(dt, keys, elapsed);
       if (archery.aiming) binoculars.deactivate();
       player.update(dt, keys, structures.fireGroup);
       traversal.update(dt, keys, player.position);

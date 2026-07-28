@@ -467,14 +467,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   }
 
   function update(dt, keys, fireGroup) {
-    if (archeryActive) {
-      // Aiming is a planted stance: avoid a walking cycle fighting the bow pose.
-      keys = {
-        ...keys, shift: false, w: false, a: false, s: false, d: false,
-        arrowup: false, arrowdown: false, arrowleft: false, arrowright: false,
-        joyForward: 0, joyTurn: 0
-      };
-    }
+    if (archeryActive) keys = { ...keys, shift: false }; // aim while walking, never sprint
     if (externalControl) return;
     idleTime += dt;
 
@@ -844,6 +837,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
 
   function updateCamera(dt, t, camera, camYawOffset, camPitch, camDist) {
     updateSpecialPose(dt, t);
+    if (!mounted && !sitting) walker.visible = !archeryActive;
     const follow = mounted ? player : walker;
     const speedRatio = mounted
       ? THREE.MathUtils.clamp(Math.abs(speed) / maxGallop, 0, 1)
@@ -853,30 +847,24 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     camera.updateProjectionMatrix();
 
     if (archeryActive && !mounted) {
-      // A free over-shoulder aim camera. Unlike the regular follow camera it
-      // looks down the sightline rather than back at the player, so arrows
-      // leave the bow and travel through the crosshair direction.
+      // True first-person sight view: the eye, reticle and arrow direction
+      // share the same sightline, with fully free look while the bow is drawn.
       const aimYaw = walker.rotation.y + camYawOffset;
-      const aimPitch = THREE.MathUtils.clamp(camPitch - 0.38, -0.85, 0.85);
+      const aimPitch = THREE.MathUtils.clamp(camPitch, -1.15, 1.15);
       const horizontal = Math.cos(aimPitch);
       const dirX = Math.sin(aimYaw) * horizontal;
       const dirY = Math.sin(aimPitch);
       const dirZ = Math.cos(aimYaw) * horizontal;
-      const rightX = Math.cos(aimYaw);
-      const rightZ = -Math.sin(aimYaw);
 
-      camPos.set(
-        walker.position.x - dirX * 1.75 + rightX * 0.42,
-        walker.position.y + 1.76,
-        walker.position.z - dirZ * 1.75 + rightZ * 0.42
-      );
+      camPos.set(walker.position.x, walker.position.y + 1.62, walker.position.z);
       if (!isInside) {
-        camPos.y = Math.max(camPos.y, terrainHeight(camPos.x, camPos.z) + 1.45);
+        camPos.y = Math.max(camPos.y, terrainHeight(camPos.x, camPos.z) + 1.55);
       }
       camTarget.set(camPos.x + dirX * 70, camPos.y + dirY * 70, camPos.z + dirZ * 70);
-      camera.fov = THREE.MathUtils.lerp(camera.fov, 48, Math.min(1, dt * 10));
+      const zoomFov = THREE.MathUtils.lerp(50, 34, archeryDraw);
+      camera.fov = THREE.MathUtils.lerp(camera.fov, zoomFov, Math.min(1, dt * 10));
       camera.updateProjectionMatrix();
-      camera.position.lerp(camPos, Math.min(1, dt * 12));
+      camera.position.lerp(camPos, Math.min(1, dt * 16));
       camera.lookAt(camTarget);
       return;
     }

@@ -1,8 +1,8 @@
-// archery.js — bow & arrow system: aim, charge, fire, arrow physics, hit registry.
-// Uses the global THREE (same as the rest of the game).
-//
-// Controls:  hold  F  (or the mobile AIM button) to draw, release to loose.
-//            arrows arc with gravity and stick into terrain/objects.
+// archery.js — first-person bow & arrow system.
+// Hold F (or the mobile AIM button) to raise & draw the bow. While drawn you
+// can freely look around (drag to aim) — release to loose, and the arrow
+// always flies exactly where the reticle/camera is pointing. Arrows stick
+// and remain visible wherever they land, including on hit targets/animals.
 export function createArchery({
   scene,
   camera,
@@ -15,7 +15,7 @@ export function createArchery({
   const GRAVITY = 18;
   const MAX_SPEED = 62;
   const MIN_SPEED = 26;
-  const DRAW_TIME = 1.1;          // seconds to full power
+  const DRAW_TIME = 1.1;
   const ARROW_LIFE = 9;
 
   // ---------- hit registry ----------
@@ -29,25 +29,29 @@ export function createArchery({
     };
   }
 
-  // ---------- meshes ----------
-  const shaftMat = new THREE.MeshStandardMaterial({ color: 0xd7c39a, roughness: 1, flatShading: true });
-  const headMat  = new THREE.MeshStandardMaterial({ color: 0x8f9aa5, roughness: 0.6, metalness: 0.4, flatShading: true });
-  const fletchMat = new THREE.MeshStandardMaterial({ color: 0xb5433a, roughness: 1, side: THREE.DoubleSide, flatShading: true });
-  const bowMat   = new THREE.MeshStandardMaterial({ color: 0x6b4426, roughness: 1, flatShading: true });
-  const stringMat = new THREE.MeshBasicMaterial({ color: 0xe9e2d0 });
+  // ---------- materials ----------
+  const shaftMat   = new THREE.MeshStandardMaterial({ color: 0xd7c39a, roughness: 1, flatShading: true });
+  const headMat    = new THREE.MeshStandardMaterial({ color: 0x8f9aa5, roughness: 0.6, metalness: 0.4, flatShading: true });
+  const fletchMat  = new THREE.MeshStandardMaterial({ color: 0xb5433a, roughness: 1, side: THREE.DoubleSide, flatShading: true });
+  const bowLimbMat = new THREE.MeshStandardMaterial({ color: 0x6b4426, roughness: 0.9, flatShading: true });
+  const bowGripMat = new THREE.MeshStandardMaterial({ color: 0x3f2a19, roughness: 0.9, flatShading: true });
+  const stringMat  = new THREE.MeshBasicMaterial({ color: 0xe9e2d0 });
 
+  // Head points toward local -Z so it lines up with an object's forward
+  // direction after either lookAt() (flying arrows) or a quaternion copy
+  // from the camera (the nocked arrow on the bow view-model).
   function makeArrowMesh() {
     const g = new THREE.Group();
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.0, 5), shaftMat);
     shaft.rotation.x = Math.PI / 2;
     g.add(shaft);
     const head = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 4), headMat);
-    head.rotation.x = Math.PI / 2;
-    head.position.z = 0.58;
+    head.rotation.x = -Math.PI / 2;
+    head.position.z = -0.58;
     g.add(head);
     for (let i = 0; i < 3; i++) {
       const f = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.12), fletchMat);
-      f.position.z = -0.42;
+      f.position.z = 0.42;
       f.rotation.z = (i / 3) * Math.PI * 2;
       f.rotation.y = Math.PI / 2;
       g.add(f);
@@ -55,73 +59,114 @@ export function createArchery({
     return g;
   }
 
-  // ---------- bow held by the player ----------
+  // ---------- bow view-model ----------
+  // Not attached to the character rig at all — every frame we copy the
+  // camera's position/orientation onto it and offset it in camera-local
+  // space, exactly like a weapon view-model in an FPS. This guarantees the
+  // bow always reads as "aimed" wherever the camera/reticle points.
   const bow = new THREE.Group();
-  const limb = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.045, 5, 12, Math.PI * 1.15), bowMat);
-  limb.rotation.z = Math.PI * 0.5;
-  bow.add(limb);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.03, 0.34, 6), bowGripMat);
+  bow.add(grip);
+  const limbTop = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, 0.6, 5), bowLimbMat);
+  limbTop.position.y = 0.46;
+  limbTop.rotation.z = 0.16;
+  bow.add(limbTop);
+  const limbBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.032, 0.6, 5), bowLimbMat);
+  limbBottom.position.y = -0.46;
+  limbBottom.rotation.z = -0.16;
+  bow.add(limbBottom);
+
   const stringGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0.52, 0), new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.52, 0)
+    new THREE.Vector3(0.02, 0.75, 0),
+    new THREE.Vector3(0.02, 0, 0),
+    new THREE.Vector3(0.02, -0.75, 0)
   ]);
   const bowString = new THREE.Line(stringGeo, stringMat);
   bow.add(bowString);
+
   const nocked = makeArrowMesh();
-  nocked.scale.setScalar(0.9);
+  nocked.scale.setScalar(0.85);
+  nocked.position.set(0.02, 0, -0.05);
   bow.add(nocked);
+
   bow.visible = false;
   scene.add(bow);
 
-  // ---------- flying arrows ----------
+  // ---------- flying / stuck arrows ----------
   const arrows = [];
   const stuck = [];
 
-  // ---------- crosshair / power UI ----------
+  // ---------- HUD: scope vignette + reticle + power + ammo ----------
   const ui = document.createElement('div');
   Object.assign(ui.style, {
     position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: 14,
     opacity: '0', transition: 'opacity .18s ease'
   });
   ui.innerHTML = `
-    <div id="archCross" style="position:absolute;left:50%;top:50%;width:26px;height:26px;
-      transform:translate(-50%,-50%);border:1.5px solid rgba(255,255,255,.85);border-radius:50%;
-      box-shadow:0 0 8px rgba(0,0,0,.6)"></div>
-    <div style="position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);
+    <div style="position:absolute;inset:0;
+      background:radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 36%, rgba(0,0,0,0.5) 100%)"></div>
+    <div id="archReticle" style="position:absolute;left:50%;top:50%;width:64px;height:64px;
+      transform:translate(-50%,-50%);transition:transform .1s ease">
+      <div style="position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.65);border-radius:50%"></div>
+      <div id="archPin" style="position:absolute;left:50%;top:50%;width:5px;height:5px;
+        transform:translate(-50%,-50%);border-radius:50%;background:#ffd479;
+        box-shadow:0 0 6px rgba(255,180,90,.9)"></div>
+      <div style="position:absolute;left:50%;top:-14px;width:1.5px;height:10px;background:rgba(255,255,255,.6);transform:translateX(-50%)"></div>
+      <div style="position:absolute;left:50%;bottom:-14px;width:1.5px;height:10px;background:rgba(255,255,255,.6);transform:translateX(-50%)"></div>
+      <div style="position:absolute;top:50%;left:-14px;height:1.5px;width:10px;background:rgba(255,255,255,.6);transform:translateY(-50%)"></div>
+      <div style="position:absolute;top:50%;right:-14px;height:1.5px;width:10px;background:rgba(255,255,255,.6);transform:translateY(-50%)"></div>
+    </div>
+    <div style="position:absolute;left:50%;top:calc(50% + 46px);transform:translateX(-50%);
       width:120px;height:5px;background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden">
       <div id="archPower" style="width:0%;height:100%;background:linear-gradient(90deg,#ffd479,#ff6b3d)"></div>
     </div>
-    <div id="archAmmo" style="position:absolute;left:50%;top:calc(50% + 42px);transform:translateX(-50%);
+    <div id="archAmmo" style="position:absolute;left:50%;top:calc(50% + 62px);transform:translateX(-50%);
       color:#eee;font-size:11px;letter-spacing:2px;text-shadow:0 2px 6px #000">🏹 0</div>`;
   document.body.appendChild(ui);
   const powerEl = ui.querySelector('#archPower');
   const ammoEl = ui.querySelector('#archAmmo');
-  const crossEl = ui.querySelector('#archCross');
+  const reticleEl = ui.querySelector('#archReticle');
+  const pinEl = ui.querySelector('#archPin');
 
   let drawing = false;
   let draw = 0;
-  const handPos = new THREE.Vector3();
-  const hasRig = typeof player.setArcheryPose === 'function';
   let aiming = false;
   let cooldown = 0;
+  let kick = 0;
   const tmpDir = new THREE.Vector3();
   const tmpPos = new THREE.Vector3();
+  const segmentDelta = new THREE.Vector3();
+  const impactPoint = new THREE.Vector3();
+
+  function sweptHit(start, end, center, radius) {
+    segmentDelta.subVectors(end, start);
+    const lengthSq = segmentDelta.lengthSq();
+    let progress = 0;
+    if (lengthSq > 0.000001) {
+      progress = THREE.MathUtils.clamp(
+        segmentDelta.dot(tmpPos.subVectors(center, start)) / lengthSq,
+        0,
+        1
+      );
+    }
+    impactPoint.copy(segmentDelta).multiplyScalar(progress).add(start);
+    return impactPoint.distanceToSquared(center) <= radius * radius;
+  }
 
   function fire() {
     const power = Math.max(0.12, Math.min(1, draw / DRAW_TIME));
     draw = 0;
     if (!inventory.take('arrow', 1)) { flash('out of arrows'); return; }
 
+    // Fires along the exact camera direction the reticle is showing —
+    // there's no separate "aim point" to drift out of sync with anymore.
     camera.getWorldDirection(tmpDir);
-    // Spawn from the bow hand so the arrow leaves the rig, not the hips.
-    if (hasRig && player.getBowHand && player.getBowHand()) {
-      player.getBowHand().getWorldPosition(tmpPos);
-    } else {
-      tmpPos.copy(player.position);
-      tmpPos.y += 1.55;
-    }
-    tmpPos.addScaledVector(tmpDir, 0.35);
+    camera.getWorldPosition(tmpPos);
+    tmpPos.addScaledVector(tmpDir, 0.6);
 
     const mesh = makeArrowMesh();
     mesh.position.copy(tmpPos);
+    mesh.lookAt(mesh.position.clone().add(tmpDir));
     scene.add(mesh);
     arrows.push({
       mesh,
@@ -129,6 +174,7 @@ export function createArchery({
       life: ARROW_LIFE,
       power
     });
+    kick = 1;
     onEvent('shot', { power });
   }
 
@@ -138,18 +184,37 @@ export function createArchery({
     flashTimer = 1.2;
   }
 
-  function landArrow(a, pos) {
+  function landArrow(a, pos, life = 22) {
     a.mesh.position.copy(pos);
     scene.add(a.mesh);
-    stuck.push({ mesh: a.mesh, life: 22 });
-    if (stuck.length > 24) {
+    stuck.push({ mesh: a.mesh, life });
+    if (stuck.length > 26) {
       const old = stuck.shift();
       scene.remove(old.mesh);
     }
   }
 
-  function update(dt, keys) {
+  function updateBowTransform(t, pull) {
+    bow.position.copy(camera.position);
+    bow.quaternion.copy(camera.quaternion);
+    bow.translateX(0.34);
+    bow.translateY(-0.24 - pull * 0.015);
+    bow.translateZ(-0.6);
+    bow.rotateY(-0.14);
+    bow.rotateZ(0.09);
+    // tiny idle sway + shot kick so the held bow doesn't feel welded to the screen
+    bow.translateX(Math.sin(t * 1.6) * 0.006);
+    bow.translateY(Math.sin(t * 2.1) * 0.005 - kick * 0.08);
+
+    const nockZ = -0.05 + pull * 0.34;
+    stringGeo.attributes.position.setXYZ(1, 0.02, 0, nockZ);
+    stringGeo.attributes.position.needsUpdate = true;
+    nocked.position.z = nockZ;
+  }
+
+  function update(dt, keys, t = 0) {
     cooldown = Math.max(0, cooldown - dt);
+    kick = Math.max(0, kick - dt * 4);
     const mounted = !!player.mounted;
     const canAim = !mounted && !player.sitting && (player.canUseArchery === undefined || player.canUseArchery);
     const wantAim = !!keys['f'] && canAim;
@@ -165,62 +230,52 @@ export function createArchery({
       }
     }
     aiming = drawing;
-
-    // ---- drive the character rig: yaw toward the camera, draw the bow ----
     const pull = Math.min(1, draw / DRAW_TIME);
-    camera.getWorldDirection(tmpDir);
-    if (hasRig) player.setArcheryPose(aiming, pull, aiming ? getAimOffset() : null);
 
-    // bow follows the left hand of the rig and points where you look
-    bow.visible = aiming && !mounted;
-    if (bow.visible) {
-      if (hasRig && player.getBowHand && player.getBowHand()) {
-        player.getBowHand().getWorldPosition(handPos);
-        bow.position.copy(handPos);
-      } else {
-        bow.position.copy(player.position);
-        bow.position.y += 1.45;
-        bow.position.addScaledVector(tmpDir, 0.55);
-      }
-      bow.lookAt(bow.position.clone().add(tmpDir));
-      bow.rotation.z += Math.PI * 0.5; // limbs vertical, like a held longbow
-      nocked.position.z = -0.18 - pull * 0.35;
-      bowString.scale.x = 1 + pull * 1.6;
+    // still drives whatever body pose player.js wants for the (now hidden) rig
+    if (typeof player.setArcheryPose === 'function') {
+      player.setArcheryPose(aiming, pull, aiming ? getAimOffset() : null);
     }
 
-    // ui
+    bow.visible = aiming && !mounted;
+    if (bow.visible) updateBowTransform(t, pull);
+
+    // ---- HUD ----
     ui.style.opacity = aiming ? '1' : '0';
-    const pct = pull;
-    powerEl.style.width = `${pct * 100}%`;
-    crossEl.style.width = crossEl.style.height = `${26 - pct * 12}px`;
+    powerEl.style.width = `${pull * 100}%`;
+    reticleEl.style.transform = `translate(-50%,-50%) scale(${1 - pull * 0.18})`;
+    pinEl.style.background = pull > 0.92 ? '#ffe27a' : '#ffd479';
     if (flashTimer > 0) flashTimer -= dt;
     else ammoEl.textContent = `🏹 ${inventory.count('arrow')}`;
 
-    // arrow physics
+    // ---- arrow physics ----
     for (let i = arrows.length - 1; i >= 0; i--) {
       const a = arrows[i];
       a.life -= dt;
+      const previousPos = tmpPos.copy(a.mesh.position).clone();
       a.vel.y -= GRAVITY * dt;
       a.mesh.position.addScaledVector(a.vel, dt);
       a.mesh.lookAt(a.mesh.position.clone().add(a.vel));
 
       let consumed = false;
-
-      // target hits
-      for (const t of targets) {
-        if (t.dead) continue;
-        const p = t.getPos();
-        if (a.mesh.position.distanceTo(p) <= (t.radius || 1)) {
-          t.onHit(a.power, a.mesh.position.clone());
-          onEvent('hit', { name: t.name, power: a.power });
+      for (const tg of targets) {
+        if (tg.dead) continue;
+        const p = tg.getPos();
+        if (sweptHit(previousPos, a.mesh.position, p, tg.radius || 1)) {
+          a.mesh.position.copy(impactPoint);
+          tg.onHit(a.power, impactPoint.clone());
+          onEvent('hit', { name: tg.name, power: a.power });
+          // stays visibly stuck at the point of impact for a few seconds
+          // instead of just vanishing
+          landArrow(a, a.mesh.position, 7);
           consumed = true;
           break;
         }
       }
+      if (consumed) { arrows.splice(i, 1); continue; }
 
-      // ground
       const gy = terrainHeight(a.mesh.position.x, a.mesh.position.z);
-      if (!consumed && a.mesh.position.y <= gy + 0.05) {
+      if (a.mesh.position.y <= gy + 0.05) {
         a.mesh.position.y = gy + 0.04;
         landArrow(a, a.mesh.position);
         onEvent('miss', {});
@@ -228,7 +283,7 @@ export function createArchery({
         continue;
       }
 
-      if (consumed || a.life <= 0 || Math.hypot(a.mesh.position.x, a.mesh.position.z) > 320) {
+      if (a.life <= 0 || Math.hypot(a.mesh.position.x, a.mesh.position.z) > 320) {
         scene.remove(a.mesh);
         arrows.splice(i, 1);
       }
