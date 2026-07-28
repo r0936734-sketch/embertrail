@@ -85,6 +85,10 @@ export function createClimate(deps) {
     gameMinutes = 12 * 60;
   }
 
+  function sleep() {
+    gameMinutes = (gameMinutes + 720) % 1440;
+  }
+
   function update(dt, elapsed) {
     climateWarming = Math.min(1, elapsed / (60 * 18));
     recomputeSeasonDurations();
@@ -197,6 +201,7 @@ export function createClimate(deps) {
   return {
     update,
     skipSeason,
+    sleep,
     getSeasonName() {
       return seasonNames[seasonIdx];
     },

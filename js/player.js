@@ -20,7 +20,7 @@
 // this file is a drop-in replacement — nothing else needs to change.
 // ============================================================================
 
-export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoofFn, playWhistleFn) {
+export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoofFn, playWhistleFn, collision) {
   const player = new THREE.Group();
   const horseMat = new THREE.MeshStandardMaterial({ color: 0x6b3a22, roughness: 1, flatShading: true });
   const darkMat  = new THREE.MeshStandardMaterial({ color: 0x2e1c12, roughness: 1, flatShading: true });
@@ -245,6 +245,14 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   let walkForwardLean = 0;
   let idleTime = 0;
   let climbUnlocked = false;
+  let velocityY = 0;
+  let grounded = true;
+  let externalControl = false;
+  let groundHeightFn = terrainHeight;
+  const GRAVITY = 22;
+  const JUMP_SPEED = 7.4;
+  const WALK_RADIUS = 0.48;
+  const HORSE_RADIUS = 0.95;
 
   const legPhaseOffsets = [0, Math.PI, Math.PI * 0.9, -0.1];
 
@@ -386,6 +394,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   }
 
   function update(dt, keys, fireGroup) {
+    if (externalControl) return;
     idleTime += dt;
 
     // ---------- key actions ----------
@@ -403,7 +412,11 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       keys['f'] = false;
     }
     if (keys[' ']) {
-      triggerRear();
+      if (mounted) triggerRear();
+      else if (!sitting && grounded) {
+        velocityY = JUMP_SPEED;
+        grounded = false;
+      }
       keys[' '] = false;
     }
 
@@ -471,7 +484,21 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walker.rotation.y = heading;
       walker.position.x += Math.sin(heading) * speed * dt;
       walker.position.z += Math.cos(heading) * speed * dt;
-      walker.position.y = terrainHeight(walker.position.x, walker.position.z);
+      if (collision) {
+        const resolved = collision.resolve({ x: walker.position.x, z: walker.position.z }, WALK_RADIUS);
+        walker.position.x = resolved.x;
+        walker.position.z = resolved.z;
+      }
+      const groundY = groundHeightFn(walker.position.x, walker.position.z);
+      velocityY -= GRAVITY * dt;
+      walker.position.y += velocityY * dt;
+      if (walker.position.y <= groundY) {
+        walker.position.y = groundY;
+        velocityY = 0;
+        grounded = true;
+      } else {
+        grounded = false;
+      }
 
       // ---- walk cycle: hips, knees, arms, torso lean & bob ----
       const moveFactor = THREE.MathUtils.clamp(Math.abs(speed) / 1.6, 0, 1);
@@ -569,7 +596,12 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     player.rotation.y = heading;
     player.position.x += Math.sin(heading) * speed * dt;
     player.position.z += Math.cos(heading) * speed * dt;
-    const gy = terrainHeight(player.position.x, player.position.z);
+    if (collision) {
+      const resolved = collision.resolve({ x: player.position.x, z: player.position.z }, HORSE_RADIUS);
+      player.position.x = resolved.x;
+      player.position.z = resolved.z;
+    }
+    const gy = groundHeightFn(player.position.x, player.position.z);
     player.position.y += (gy - player.position.y) * Math.min(1, dt * 10);
 
     const absSpeed = Math.abs(speed);
@@ -714,6 +746,22 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       speed = 0;
     },
     restoreStamina(amount) { stamina = Math.min(staminaMax, stamina + amount); },
+    setExternalControl(value) {
+      externalControl = value;
+      if (!value) { velocityY = 0; grounded = true; }
+    },
+    setGroundHeightFn(fn) { groundHeightFn = fn || terrainHeight; },
+    teleportWalker(x, y, z, headingY) {
+      walker.position.set(x, y, z);
+      if (headingY !== undefined) {
+        heading = headingY;
+        walker.rotation.y = headingY;
+      }
+      speed = 0;
+      velocityY = 0;
+      grounded = true;
+    },
+    get grounded() { return grounded; },
     triggerRear,
     update,
     updateCamera

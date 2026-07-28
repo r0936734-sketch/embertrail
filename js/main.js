@@ -1,9 +1,11 @@
 import { createAudio, startAudio, toggleMute, playHoof, playWhistle } from './audio.js';
 import { createScene } from './scene.js';
 import { createTerrain } from './terrain.js';
+import { createCollisionSystem } from './collision.js';
 import { createMountains } from './mountains.js';
 import { createVegetation } from './vegetation.js';
 import { createStructures } from './structures.js';
+import { createTraversal } from './traversal.js';
 import { createWildlife } from './wildlife.js';
 import { createHouse } from './house.js';
 import { createPlayer } from './player.js';
@@ -35,12 +37,13 @@ import { createBinoculars } from './binoculars.js';
     sunMesh, moon, moonGlow, starsMat
   } = createScene();
 
+  const collision = createCollisionSystem();
   const terrain = createTerrain(scene);
   const mountains = createMountains(scene);
-  const vegetation = createVegetation(scene, terrain.terrainHeight);
+  const vegetation = createVegetation(scene, terrain.terrainHeight, collision);
   const structures = createStructures(scene, terrain.terrainHeight);
   const wildlife = createWildlife(scene, terrain.terrainHeight);
-  const landmarks = createLandmarks(scene, terrain.terrainHeight);
+  const landmarks = createLandmarks(scene, terrain.terrainHeight, collision);
   const collectibles = createCollectibles(scene, terrain.terrainHeight);
   const fireflies = createFireflies(scene, terrain.terrainHeight);
   const weather = createWeather(scene);
@@ -52,14 +55,15 @@ import { createBinoculars } from './binoculars.js';
   });
 
   // houses / points of interest
-  const house = createHouse(scene, terrain.terrainHeight);
+  const house = createHouse(scene, terrain.terrainHeight, collision);
 
   const player = createPlayer(
   scene,
   terrain.terrainHeight,
   terrain.terrainNormalApprox,
   (strength) => playHoof(audio, strength),
-  () => playWhistle(audio)          // ← new
+  () => playWhistle(audio),
+  collision
 );
 
   const climate = createClimate({
@@ -82,6 +86,17 @@ import { createBinoculars } from './binoculars.js';
     leafSys: vegetation.leafSys,
     mountains
   });
+
+  house.setSleepCallback(() => climate.sleep());
+
+  const traversal = createTraversal(
+    scene,
+    player,
+    terrain.terrainHeight,
+    landmarks.TW_POS,
+    landmarks.TW_BASE_Y,
+    house.ziplineAnchor
+  );
 
   const ui = createUI(player, landmarks.poiList, key => {
     if (key !== 'climbUnlock') return;
@@ -230,22 +245,18 @@ import { createBinoculars } from './binoculars.js';
     } else {
       structures.updateFire(elapsed, isSummer);
 
-      // The cabin owns E while close to its door; elsewhere E keeps its
-      // normal mount/dismount behaviour in the player controller.
+      // The cabin owns E while close to its door (or an item inside it);
+      // elsewhere E keeps its normal mount/dismount behaviour.
       if (keys['e'] && house.tryInteract(player)) keys['e'] = false;
 
-      if (!house.resting) {
-        player.update(dt, keys, structures.fireGroup);
-        // Third-person games naturally settle the camera behind the character
-        // when movement starts, even if the player had been looking sideways.
-        if (Math.abs(player.speed) > 0.15) {
-          camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
-        }
-        player.updateCamera(dt, elapsed, camera, camYawOffset, camPitch, camDist);
-      } else {
-        house.updateInteriorCamera(dt, elapsed, camera);
+      player.update(dt, keys, structures.fireGroup);
+      traversal.update(dt, keys, player.position);
+
+      if (Math.abs(player.speed) > 0.15) {
+        camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
       }
-      // House updates its door, interior UI, and stamina restoration.
+      player.updateCamera(dt, elapsed, camera, camYawOffset, camPitch, camDist);
+
       house.update(dt, elapsed, player);
     }
 
