@@ -86,6 +86,8 @@ export function createCollectibles(scene, terrainHeight) {
 
   // ── gather prompt ───────────────────────────────────────────────────────
   const gatherPrompt = _makeOverlayEl('gatherPrompt', { bottom: '22%', border: '1px solid rgba(255,255,255,0.15)' });
+  gatherPrompt.classList.add('context-prompt');
+  gatherPrompt.dataset.mobileKey = 'g';
   document.body.appendChild(gatherPrompt);
 
   // ── toast ────────────────────────────────────────────────────────────────
@@ -171,6 +173,8 @@ function _buildFishing(TYPES, collected, showToast) {
   let progress = 0;
 
   const promptEl = _makeOverlayEl('fishPrompt', { bottom: '22%', border: '1px solid rgba(120,200,255,0.3)' });
+  promptEl.classList.add('context-prompt');
+  promptEl.dataset.mobileKey = 'c';
   document.body.appendChild(promptEl);
 
   const barWrap = document.createElement('div');

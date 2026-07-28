@@ -76,6 +76,7 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
   let flavorTimer = 0;
   const discovered = new Set();
   const firedEvents = new Set();
+  const transientTracker = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
   function updatePOI(dt, playerPos) {
     let found = null;
@@ -103,6 +104,7 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
         fl.style.opacity = '1';
         flavorTimer = 5.5;
         refreshTracker();
+        revealTracker();
       } else {
         el.style.opacity = '0';
         fl.style.opacity = '0';
@@ -124,12 +126,19 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
     backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
     border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px',
     color: '#fff', fontSize: '11px', letterSpacing: '0.04em', lineHeight: '1.8',
-    zIndex: '10', pointerEvents: 'none', opacity: '0.9'
+    zIndex: '10', pointerEvents: 'none', opacity: transientTracker ? '0' : '0.9',
+    transition: 'opacity 0.35s ease'
   });
   document.body.appendChild(trackerEl);
 
   let lastSpeciesFound = 0;
   let lastSpeciesTotal = 0;
+  let trackerTimer = 0;
+  function revealTracker() {
+    if (!transientTracker) return;
+    trackerTimer = 4.2;
+    trackerEl.style.opacity = '0.94';
+  }
   function refreshTracker() {
     trackerEl.innerHTML =
       '<div style="opacity:0.6;font-size:9px;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px">Places found</div>' +
@@ -152,6 +161,12 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
       lastSpeciesFound = speciesProgress.found;
       lastSpeciesTotal = speciesProgress.total;
       refreshTracker();
+      revealTracker();
+    }
+
+    if (transientTracker && trackerTimer > 0) {
+      trackerTimer -= dt;
+      if (trackerTimer <= 0) trackerEl.style.opacity = '0';
     }
 
     const hh = Math.floor(climate.gameMinutes / 60);

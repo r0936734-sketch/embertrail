@@ -9,11 +9,15 @@ export function createAudio() {
     a.volume = 0.55;
     hoofPool.push(a);
   }
+  const rear = new Audio('rear.mp3');
+  rear.preload = 'auto';
+  rear.volume = 0.72;
 
   return {
     bgm,
     hoofPool,
     hoofIdx: 0,
+    rear,
     started: false,
     muted: false,
     audioCtx: null
@@ -40,6 +44,7 @@ export function toggleMute(audio) {
   audio.muted = !audio.muted;
   audio.bgm.muted = audio.muted;
   audio.hoofPool.forEach(a => (a.muted = audio.muted));
+  audio.rear.muted = audio.muted;
   updateSoundIcon(audio);
 }
 
@@ -65,7 +70,7 @@ export function playWhistle(audio) {
   const ctx = audio.audioCtx;
   const now = ctx.currentTime;
 
-  // two quick rising tones that sound like a human whistle
+  // A soft, slower rising whistle.
   const osc1 = ctx.createOscillator();
   const osc2 = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -73,14 +78,14 @@ export function playWhistle(audio) {
   osc1.type = 'sine';
   osc2.type = 'sine';
 
-  osc1.frequency.setValueAtTime(880, now);
-  osc1.frequency.exponentialRampToValueAtTime(1400, now + 0.18);
-  osc2.frequency.setValueAtTime(1100, now + 0.12);
-  osc2.frequency.exponentialRampToValueAtTime(1600, now + 0.32);
+  osc1.frequency.setValueAtTime(600, now);
+  osc1.frequency.exponentialRampToValueAtTime(820, now + 0.35);
+  osc2.frequency.setValueAtTime(700, now + 0.15);
+  osc2.frequency.exponentialRampToValueAtTime(950, now + 0.55);
 
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(0.18, now + 0.04);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
 
   osc1.connect(gain);
   osc2.connect(gain);
@@ -88,6 +93,14 @@ export function playWhistle(audio) {
 
   osc1.start(now);
   osc2.start(now + 0.12);
-  osc1.stop(now + 0.5);
-  osc2.stop(now + 0.5);
+  osc1.stop(now + 0.95);
+  osc2.stop(now + 0.95);
+}
+
+export function playRear(audio) {
+  if (!audio.started || audio.muted) return;
+  const rear = audio.rear;
+  rear.currentTime = 0;
+  rear.volume = 0.72;
+  rear.play().catch(() => {});
 }

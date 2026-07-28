@@ -6,22 +6,33 @@ export function createCollisionSystem() {
   const colliders = [];
 
   function addCollider(x, z, r) {
-    colliders.push({ type: 'circle', x, z, r });
+    const collider = { type: 'circle', x, z, r, enabled: true };
+    colliders.push(collider);
+    return collider;
   }
 
   function addBox(x, z, halfW, halfD) {
-    colliders.push({ type: 'box', x, z, hw: halfW, hd: halfD });
+    const collider = { type: 'box', x, z, hw: halfW, hd: halfD, enabled: true };
+    colliders.push(collider);
+    return collider;
   }
 
   function resolve(pos, radius) {
     for (let i = 0; i < colliders.length; i++) {
       const c = colliders[i];
+      if (!c.enabled) continue;
       if (c.type === 'circle') {
         const dx = pos.x - c.x, dz = pos.z - c.z;
         const minD = c.r + radius;
         const distSq = dx * dx + dz * dz;
         if (distSq < minD * minD) {
-          const dist = Math.sqrt(distSq) || 0.001;
+          // An exact centre hit has no radial direction; choose one so the
+          // player cannot remain embedded in a circular collider.
+          if (distSq < 0.000001) {
+            pos.x += minD;
+            continue;
+          }
+          const dist = Math.sqrt(distSq);
           const push = minD - dist;
           pos.x += (dx / dist) * push;
           pos.z += (dz / dist) * push;

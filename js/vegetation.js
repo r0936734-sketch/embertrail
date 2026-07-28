@@ -1,4 +1,4 @@
-export function createVegetation(scene, terrainHeight) {
+export function createVegetation(scene, terrainHeight, collision) {
   const dummy = new THREE.Object3D();
 
   function rand(min, max) { return min + Math.random() * (max - min); }
@@ -28,6 +28,7 @@ export function createVegetation(scene, terrainHeight) {
     dummy.scale.setScalar(s);
     dummy.updateMatrix();
     trunkMesh.setMatrixAt(i, dummy.matrix);
+    if (collision) collision.addCollider(x, z, 0.42 * s);
 
     dummy.position.y = y + 3.6 * s;
     dummy.updateMatrix();
@@ -83,6 +84,7 @@ export function createVegetation(scene, terrainHeight) {
     dummy.scale.setScalar(s);
     dummy.updateMatrix();
     cherryTrunkMesh.setMatrixAt(i, dummy.matrix);
+    if (collision) collision.addCollider(x, z, 0.4 * s);
 
     for (let b = 0; b < blobsPerTree; b++) {
       const matIdx = robin % cherryCanopyMats.length;
@@ -144,6 +146,7 @@ export function createVegetation(scene, terrainHeight) {
     dummy.scale.setScalar(s);
     dummy.updateMatrix();
     birchTrunkMesh.setMatrixAt(i, dummy.matrix);
+    if (collision) collision.addCollider(x, z, 0.3 * s);
 
     for (let m = 0; m < 3; m++) {
       dummy.position.set(x + (Math.random() - 0.5) * 0.05, y + (0.6 + m * 0.9) * s, z + 0.19 * s);
@@ -335,6 +338,7 @@ export function createVegetation(scene, terrainHeight) {
     dummy.updateMatrix();
     const slot = rockCounters[matIdx]++;
     rockMeshes[matIdx].setMatrixAt(slot, dummy.matrix);
+    if (collision) collision.addCollider(x, z, 0.55 * s);
   }
   rockMeshes.forEach((m, idx) => {
     m.count = rockCounters[idx];

@@ -20,7 +20,7 @@
 // this file is a drop-in replacement — nothing else needs to change.
 // ============================================================================
 
-export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoofFn, playWhistleFn, collision) {
+export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoofFn, playWhistleFn, playRearFn, collision) {
   const player = new THREE.Group();
   const horseMat = new THREE.MeshStandardMaterial({ color: 0x6b3a22, roughness: 1, flatShading: true });
   const darkMat  = new THREE.MeshStandardMaterial({ color: 0x2e1c12, roughness: 1, flatShading: true });
@@ -140,16 +140,30 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const riderMat = new THREE.MeshStandardMaterial({ color: 0x2b3a55, roughness: 1, flatShading: true });
   const skinMat  = new THREE.MeshStandardMaterial({ color: 0xc9946b, roughness: 1, flatShading: true });
   const hatMat   = new THREE.MeshStandardMaterial({ color: 0x1c1a17, roughness: 1, flatShading: true });
+  const shirtDetailMat = new THREE.MeshStandardMaterial({ color: 0x7fa5d4, roughness: 0.82, flatShading: true });
+  const packMat = new THREE.MeshStandardMaterial({ color: 0x5a3825, roughness: 0.9, flatShading: true });
+  const faceDetailMat = new THREE.MeshBasicMaterial({ color: 0x241a16 });
 
   const torsoBaseY = 2.55;
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.4), riderMat);
   torso.position.set(0, torsoBaseY, 0.05);
   riderGroup.add(torso);
+  const riderPlacket = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.62, 0.025), shirtDetailMat);
+  riderPlacket.position.set(0, torsoBaseY, 0.265);
+  riderGroup.add(riderPlacket);
+  const riderPack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.55, 0.2), packMat);
+  riderPack.position.set(0, 2.58, -0.22);
+  riderGroup.add(riderPack);
 
   const riderHeadBaseY = 3.15;
   const riderHead = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), skinMat);
   riderHead.position.set(0, riderHeadBaseY, 0.05);
   riderGroup.add(riderHead);
+  [-0.08, 0.08].forEach(x => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.027, 6, 6), faceDetailMat);
+    eye.position.set(x, riderHeadBaseY + 0.04, 0.27);
+    riderGroup.add(eye);
+  });
 
   const hatBrimBaseY = 3.34;
   const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 10), hatMat);
@@ -169,6 +183,34 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     arm.elbow.rotation.x = -1.0;    // forearm bent forward
   });
 
+  function makeBinoculars(parent, pos, scale = 1) {
+    const binoculars = new THREE.Group();
+    binoculars.position.set(...pos);
+    binoculars.scale.setScalar(scale);
+    const casing = new THREE.MeshStandardMaterial({ color: 0x161a1d, roughness: 0.55, metalness: 0.45, flatShading: true });
+    const lens = new THREE.MeshBasicMaterial({ color: 0x6ea9c9 });
+    [-0.11, 0.11].forEach(x => {
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.1, 0.32, 10), casing);
+      tube.rotation.x = Math.PI / 2;
+      tube.position.x = x;
+      binoculars.add(tube);
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.07, 10), lens);
+      glass.position.set(x, 0, 0.165);
+      binoculars.add(glass);
+    });
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.22), casing);
+    binoculars.add(bridge);
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.012, 5, 12, Math.PI), casing);
+    strap.rotation.x = Math.PI / 2;
+    strap.position.set(0, -0.18, -0.03);
+    binoculars.add(strap);
+    binoculars.visible = false;
+    parent.add(binoculars);
+    return binoculars;
+  }
+
+  const riderBinoculars = makeBinoculars(riderGroup, [0, 3.2, 0.36], 0.9);
+
   // ---------- Walking character (shown when dismounted) ----------
   const walker = new THREE.Group();
   walker.visible = false;
@@ -182,10 +224,27 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const walkBody = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.85, 0.3), riderMat);
   walkBody.position.set(0, 0.40, 0);
   walkUpperBody.add(walkBody);
+  const walkPlacket = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.7, 0.022), shirtDetailMat);
+  walkPlacket.position.set(0, 0.4, 0.162);
+  walkUpperBody.add(walkPlacket);
+  const walkPocket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.025), shirtDetailMat);
+  walkPocket.position.set(-0.13, 0.5, 0.165);
+  walkUpperBody.add(walkPocket);
+  const walkPack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.48, 0.18), packMat);
+  walkPack.position.set(0, 0.45, -0.22);
+  walkUpperBody.add(walkPack);
 
   const walkHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), skinMat);
   walkHead.position.set(0, 1.05, 0);
   walkUpperBody.add(walkHead);
+  [-0.07, 0.07].forEach(x => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.023, 6, 6), faceDetailMat);
+    eye.position.set(x, 1.08, 0.215);
+    walkUpperBody.add(eye);
+  });
+  const walkBeard = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.08, 0.035), faceDetailMat);
+  walkBeard.position.set(0, 0.96, 0.215);
+  walkUpperBody.add(walkBeard);
 
   const walkHatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.05, 10), hatMat);
   walkHatBrim.position.set(0, 1.22, 0);
@@ -193,6 +252,10 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const walkHatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.22, 10), hatMat);
   walkHatTop.position.set(0, 1.35, 0);
   walkUpperBody.add(walkHatTop);
+  const walkHatBand = new THREE.Mesh(new THREE.TorusGeometry(0.185, 0.025, 6, 10), shirtDetailMat);
+  walkHatBand.rotation.x = Math.PI / 2;
+  walkHatBand.position.set(0, 1.28, 0);
+  walkUpperBody.add(walkHatBand);
 
   // arms — this is what the dismounted character was missing entirely
   const walkArmL = makeArm(walkUpperBody, { x: -0.29, y: 0.70, z: 0 }, 0.30, 0.26, 0.14, riderMat, skinMat, 0.085);
@@ -201,6 +264,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     arm.shoulder.rotation.x = -0.05;
     arm.elbow.rotation.x = 0.08;
   });
+  const walkBinoculars = makeBinoculars(walkUpperBody, [0, 1.08, 0.31]);
 
   // legs — now jointed at hip + knee instead of rotating a single box
   const walkLegUpperLen = 0.42, walkLegLowerLen = 0.35, walkLegThickness = 0.16;
@@ -248,6 +312,11 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   let velocityY = 0;
   let grounded = true;
   let externalControl = false;
+  let isInside = false;
+  let cameraNeedsSnap = false;
+  let indoorCameraBounds = null;
+  let traversalPose = 'none';
+  let binocularsRaised = false;
   let groundHeightFn = terrainHeight;
   const GRAVITY = 22;
   const JUMP_SPEED = 7.4;
@@ -281,6 +350,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     if (Math.abs(speed) < 1.2) {
       rearing = true;
       rearTimer = 0.75;
+      playRearFn();
     }
   }
 
@@ -695,7 +765,47 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     desiredCameraPos.y = safeY;
   }
 
+  function poseArm(arm, shoulderX, elbowX, dt) {
+    const blend = Math.min(1, dt * 14);
+    arm.shoulder.rotation.x += (shoulderX - arm.shoulder.rotation.x) * blend;
+    arm.elbow.rotation.x += (elbowX - arm.elbow.rotation.x) * blend;
+  }
+
+  function updateSpecialPose(dt, t) {
+    const climbing = traversalPose === 'climb';
+    const ziplining = traversalPose === 'zipline';
+    const usingBinoculars = binocularsRaised && traversalPose === 'none';
+
+    walkBinoculars.visible = usingBinoculars && !mounted;
+    riderBinoculars.visible = usingBinoculars && mounted;
+    if (climbing) {
+      const reach = Math.sin(t * 5.8) * 0.16;
+      poseArm(walkArmL, -1.1 + reach, 0.62, dt);
+      poseArm(walkArmR, -1.1 - reach, 0.62, dt);
+      walkLegL.hip.rotation.x = Math.sin(t * 5.8 + Math.PI) * 0.18;
+      walkLegR.hip.rotation.x = Math.sin(t * 5.8) * 0.18;
+      walkLegL.knee.rotation.x = 0.35;
+      walkLegR.knee.rotation.x = 0.35;
+      walkUpperBody.rotation.x = 0.14;
+    } else if (ziplining) {
+      // Both hands stay above the head and forward on the ropeway handle.
+      poseArm(walkArmL, -2.08, 0.35, dt);
+      poseArm(walkArmR, -2.08, 0.35, dt);
+      walkLegL.hip.rotation.x = 0.28;
+      walkLegR.hip.rotation.x = 0.28;
+      walkLegL.knee.rotation.x = 0.45;
+      walkLegR.knee.rotation.x = 0.45;
+      walkUpperBody.rotation.x = -0.08;
+    } else if (usingBinoculars) {
+      const leftArm = mounted ? riderArmL : walkArmL;
+      const rightArm = mounted ? riderArmR : walkArmR;
+      poseArm(leftArm, -0.95, 1.08, dt);
+      poseArm(rightArm, -0.95, 1.08, dt);
+    }
+  }
+
   function updateCamera(dt, t, camera, camYawOffset, camPitch, camDist) {
+    updateSpecialPose(dt, t);
     const follow = mounted ? player : walker;
     const speedRatio = mounted
       ? THREE.MathUtils.clamp(Math.abs(speed) / maxGallop, 0, 1)
@@ -704,6 +814,28 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     camera.fov = THREE.MathUtils.lerp(camera.fov, baseFov + speedRatio * 9, Math.min(1, dt * 3));
     camera.updateProjectionMatrix();
 
+    if (binocularsRaised) {
+      camera.fov = 20;
+      camera.updateProjectionMatrix();
+      const viewAngle = (mounted ? heading : walker.rotation.y) + camYawOffset;
+      const eyeHeight = mounted ? 3.38 : 2.03;
+      const eyeForward = 0.24;
+      camPos.set(
+        follow.position.x + Math.sin(viewAngle) * eyeForward,
+        follow.position.y + eyeHeight,
+        follow.position.z + Math.cos(viewAngle) * eyeForward
+      );
+      const horizLook = Math.cos(camPitch);
+      camTarget.set(
+        camPos.x + Math.sin(viewAngle) * horizLook * 60,
+        camPos.y + Math.sin(camPitch) * 60,
+        camPos.z + Math.cos(viewAngle) * horizLook * 60
+      );
+      camera.position.lerp(camPos, Math.min(1, dt * 14));
+      camera.lookAt(camTarget);
+      return;
+    }
+
     const totalAngle = (mounted ? heading : walker.rotation.y) + Math.PI + camYawOffset;
     const horiz = camDist * Math.cos(camPitch);
     const cx = follow.position.x + Math.sin(totalAngle) * horiz;
@@ -711,8 +843,18 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     const cy = follow.position.y + 2.4 + camDist * Math.sin(camPitch);
 
     camPos.set(cx, cy, cz);
-    keepCameraAboveTerrain(follow, camPos);
-    camera.position.lerp(camPos, Math.min(1, dt * 5));
+    if (!isInside) keepCameraAboveTerrain(follow, camPos);
+    if (isInside && indoorCameraBounds) {
+      camPos.x = THREE.MathUtils.clamp(camPos.x, indoorCameraBounds.minX, indoorCameraBounds.maxX);
+      camPos.y = THREE.MathUtils.clamp(camPos.y, indoorCameraBounds.minY, indoorCameraBounds.maxY);
+      camPos.z = THREE.MathUtils.clamp(camPos.z, indoorCameraBounds.minZ, indoorCameraBounds.maxZ);
+    }
+    if (cameraNeedsSnap) {
+      camera.position.copy(camPos);
+      cameraNeedsSnap = false;
+    } else {
+      camera.position.lerp(camPos, Math.min(1, dt * 5));
+    }
 
     const shake = speedRatio * speedRatio * 0.05;
     camera.position.x += Math.sin(t * 23) * shake;
@@ -720,10 +862,12 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
 
     // The smoothing and movement shake can briefly leave the camera below a
     // newly reached slope, so clamp its final position as a safeguard.
-    camera.position.y = Math.max(
-      camera.position.y,
-      terrainHeight(camera.position.x, camera.position.z) + 1.6
-    );
+    if (!isInside) {
+      camera.position.y = Math.max(
+        camera.position.y,
+        terrainHeight(camera.position.x, camera.position.z) + 1.6
+      );
+    }
 
     camTarget.set(follow.position.x, follow.position.y + 2.2, follow.position.z);
     camera.lookAt(camTarget);
@@ -738,12 +882,27 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     get gaitName() { return currentGaitName(Math.abs(speed)); },
     get mounted() { return mounted; },
     get sitting() { return sitting; },
+    get canMount() { return !mounted && !sitting && walker.position.distanceTo(player.position) <= 4.5; },
     get climbUnlocked() { return climbUnlocked; },
     unlockClimb() { climbUnlocked = true; },
     setInside(value) {
       if (mounted) return;
-      walker.visible = !value;
+      isInside = value;
+      cameraNeedsSnap = true;
+      // Keep the player visible in the larger third-person cabin space.
+      walker.visible = true;
       speed = 0;
+    },
+    setIndoorCameraBounds(bounds) {
+      indoorCameraBounds = bounds;
+      cameraNeedsSnap = true;
+    },
+    setTraversalPose(pose) {
+      traversalPose = pose || 'none';
+      if (traversalPose !== 'none') binocularsRaised = false;
+    },
+    setBinocularsActive(active) {
+      binocularsRaised = Boolean(active);
     },
     restoreStamina(amount) { stamina = Math.min(staminaMax, stamina + amount); },
     setExternalControl(value) {

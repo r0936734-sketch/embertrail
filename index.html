@@ -10,6 +10,13 @@
 </head>
 <body>
   <div id="loadingScreen">LOADING WORLD<div class="sub">shaping mountains, seeding seasons…</div></div>
+  <div id="mobileLaunch" aria-label="Mobile game launch">
+    <div class="mobile-launch-card">
+      <div class="mobile-launch-title">EMBERTRAIL</div>
+      <div class="mobile-launch-copy">For the best experience, play in landscape fullscreen.</div>
+      <button id="mobileLaunchBtn" type="button">PLAY FULLSCREEN</button>
+    </div>
+  </div>
   <div class="vignette"></div>
   <div id="canvas-wrap"></div>
 
@@ -65,8 +72,25 @@
     <button class="dbtn right" data-k="d">▶</button>
     <button class="dbtn down" data-k="s">▼</button>
   </div>
+  <div class="touch-joystick" id="touchJoystick" aria-label="Movement joystick">
+    <div class="touch-joystick-knob" id="touchJoystickKnob"></div>
+  </div>
   <button class="gbtn" id="gallopBtn">GALLOP</button>
   <button class="rbtn" id="rearBtn">REAR</button>
+  <button class="context-btn" id="contextBtn" type="button">ACTION</button>
+  <div class="mobile-quick-actions" id="mobileQuickActions">
+    <button class="mobile-quick-btn" id="callHorseBtn" type="button">CALL</button>
+    <button class="mobile-quick-btn" id="dismountBtn" type="button">DISMOUNT</button>
+    <button class="mobile-quick-btn" id="seasonBtn" type="button">SEASON</button>
+  </div>
+  <div class="mobile-sensitivity" id="mobileSensitivity" aria-label="Look sensitivity">
+    <label for="sensitivitySlider" id="sensitivityValue">LOOK 100%</label>
+    <input id="sensitivitySlider" type="range" min="50" max="150" value="100" step="1" aria-label="Look sensitivity, 50 to 150 percent">
+  </div>
+  <div class="mobile-zoom-actions" id="mobileZoomActions" aria-label="Camera zoom">
+    <button class="mobile-camera-btn mobile-zoom-btn" id="zoomOutBtn" type="button" aria-label="Zoom camera out">−</button>
+    <button class="mobile-camera-btn mobile-zoom-btn" id="zoomInBtn" type="button" aria-label="Zoom camera in">+</button>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script type="module" src="js/main.js"></script>

@@ -1,6 +1,6 @@
 // landmarks.js — waterfall+pool, ruined watchtower, rope bridge, hermit's camp, fishing pond
 
-export function createLandmarks(scene, terrainHeight) {
+export function createLandmarks(scene, terrainHeight, collision) {
   const dummy = new THREE.Object3D();
 
   const stoneMat  = new THREE.MeshStandardMaterial({ color: 0x8a8076, roughness: 1, flatShading: true });
@@ -103,8 +103,9 @@ export function createLandmarks(scene, terrainHeight) {
   // 2.  RUINED WATCHTOWER / SHRINE
   // ─────────────────────────────────────────────────────────────────────────
   const TW_POS = { x: 60, z: -36 };
+  const TW_BASE_Y = terrainHeight(TW_POS.x, TW_POS.z);
   const twGroup = new THREE.Group();
-  twGroup.position.set(TW_POS.x, terrainHeight(TW_POS.x, TW_POS.z), TW_POS.z);
+  twGroup.position.set(TW_POS.x, TW_BASE_Y, TW_POS.z);
   scene.add(twGroup);
 
   // base platform
@@ -112,6 +113,7 @@ export function createLandmarks(scene, terrainHeight) {
   const base = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.6, 5.5), baseMat);
   base.position.y = 0.3;
   twGroup.add(base);
+  if (collision) collision.addCollider(TW_POS.x, TW_POS.z, 2.05);
 
   // tower shaft
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.0, 8.5, 8), stoneMat);
@@ -136,6 +138,41 @@ export function createLandmarks(scene, terrainHeight) {
     battlement.rotation.y = -angle;
     twGroup.add(battlement);
   }
+
+  // A real ladder makes the climb path readable and gives the lookout a
+  // convincing access route. It lines up with traversal.js on the south face.
+  const ladderMat = new THREE.MeshStandardMaterial({ color: 0x4a3020, roughness: 0.95, flatShading: true });
+  const ladderZ = 2.16;
+  [-0.52, 0.52].forEach(x => {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 9.25, 6), ladderMat);
+    rail.position.set(x, 4.78, ladderZ);
+    twGroup.add(rail);
+  });
+  for (let i = 0; i < 17; i++) {
+    const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.12, 6), ladderMat);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(0, 0.52 + i * 0.52, ladderZ);
+    twGroup.add(rung);
+  }
+  const ladderTopRailL = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.45, 6), ladderMat);
+  ladderTopRailL.position.set(-0.52, 9.9, ladderZ - 0.28);
+  ladderTopRailL.rotation.x = 0.22;
+  twGroup.add(ladderTopRailL);
+  const ladderTopRailR = ladderTopRailL.clone();
+  ladderTopRailR.position.x = 0.52;
+  twGroup.add(ladderTopRailR);
+
+  // A small timber signal frame reinforces the tower's old lookout purpose.
+  const lookoutWood = new THREE.MeshStandardMaterial({ color: 0x50351f, roughness: 0.9, flatShading: true });
+  [-1.45, 1.45].forEach(x => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 2.0, 6), lookoutWood);
+    post.position.set(x, 10.15, -0.7);
+    twGroup.add(post);
+  });
+  const crossBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.15, 6), lookoutWood);
+  crossBeam.rotation.z = Math.PI / 2;
+  crossBeam.position.set(0, 11.0, -0.7);
+  twGroup.add(crossBeam);
 
   // Doorway, worn steps, and a banner make the tower feel inhabited rather
   // than just a bare cylinder in the distance.
@@ -452,5 +489,5 @@ export function createLandmarks(scene, terrainHeight) {
     towerBeaconLight.intensity = 1.15 + Math.sin(t * 6.5) * 0.18;
   }
 
-  return { poiList, update, WF_POS, TW_POS, BR_POS, HM_POS, PD_POS };
+  return { poiList, update, WF_POS, TW_POS, TW_BASE_Y, BR_POS, HM_POS, PD_POS };
 }

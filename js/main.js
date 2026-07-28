@@ -1,4 +1,4 @@
-import { createAudio, startAudio, toggleMute, playHoof, playWhistle } from './audio.js';
+import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
 import { createScene } from './scene.js';
 import { createTerrain } from './terrain.js';
 import { createCollisionSystem } from './collision.js';
@@ -13,6 +13,7 @@ import { createClimate } from './climate.js';
 import { createUI } from './ui.js';
 import { createIntro } from './intro.js';
 import { createLandmarks } from './landmarks.js';
+import { createWaterfall } from './waterfall.js';
 import { createCollectibles } from './collectibles.js';
 import { createFireflies } from './fireflies.js';
 import { createWeather } from './weather.js';
@@ -34,7 +35,7 @@ import { createBinoculars } from './binoculars.js';
   const {
     scene, camera, renderer, skyUniforms,
     ambientLight, hemiLight, sunLight, moonLight,
-    sunMesh, moon, moonGlow, starsMat
+    sunMesh, moon, moonGlow, starsMat, planetsGroup
   } = createScene();
 
   const collision = createCollisionSystem();
@@ -44,6 +45,7 @@ import { createBinoculars } from './binoculars.js';
   const structures = createStructures(scene, terrain.terrainHeight);
   const wildlife = createWildlife(scene, terrain.terrainHeight);
   const landmarks = createLandmarks(scene, terrain.terrainHeight, collision);
+  const waterfall = createWaterfall(scene, terrain.terrainHeight, collision);
   const collectibles = createCollectibles(scene, terrain.terrainHeight);
   const fireflies = createFireflies(scene, terrain.terrainHeight);
   const weather = createWeather(scene);
@@ -55,7 +57,7 @@ import { createBinoculars } from './binoculars.js';
   });
 
   // houses / points of interest
-  const house = createHouse(scene, terrain.terrainHeight, collision);
+  const house = createHouse(scene, terrain.terrainHeight, collision, renderer);
 
   const player = createPlayer(
   scene,
@@ -63,6 +65,7 @@ import { createBinoculars } from './binoculars.js';
   terrain.terrainNormalApprox,
   (strength) => playHoof(audio, strength),
   () => playWhistle(audio),
+  () => playRear(audio),
   collision
 );
 
@@ -77,6 +80,7 @@ import { createBinoculars } from './binoculars.js';
     moon,
     moonGlow,
     starsMat,
+    planetsGroup,
     groundMat: terrain.groundMat,
     treeLeafMat: vegetation.treeLeafMat,
     cherryCanopyMats: vegetation.cherryCanopyMats,
@@ -98,7 +102,7 @@ import { createBinoculars } from './binoculars.js';
     house.ziplineAnchor
   );
 
-  const ui = createUI(player, landmarks.poiList, key => {
+  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList], key => {
     if (key !== 'climbUnlock') return;
     player.unlockClimb();
     const toast = document.createElement('div');
@@ -157,9 +161,178 @@ import { createBinoculars } from './binoculars.js';
   gallopBtn.addEventListener('pointerleave', () => { keys['shift'] = false; });
 
   document.getElementById('rearBtn').addEventListener('pointerdown', e => {
+    startAudio(audio);
     player.triggerRear();
     e.preventDefault();
   });
+
+  const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  const joystick = document.getElementById('touchJoystick');
+  const joystickKnob = document.getElementById('touchJoystickKnob');
+  const contextBtn = document.getElementById('contextBtn');
+  const callHorseBtn = document.getElementById('callHorseBtn');
+  const dismountBtn = document.getElementById('dismountBtn');
+  const seasonBtn = document.getElementById('seasonBtn');
+  const mobileSensitivity = document.getElementById('mobileSensitivity');
+  const mobileZoomActions = document.getElementById('mobileZoomActions');
+  const sensitivitySlider = document.getElementById('sensitivitySlider');
+  const sensitivityValue = document.getElementById('sensitivityValue');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const mobileLaunch = document.getElementById('mobileLaunch');
+  const mobileLaunchBtn = document.getElementById('mobileLaunchBtn');
+  contextBtn.style.display = 'none';
+
+  function pulseKey(key) {
+    if (!key) return;
+    const code = `Key${key.toUpperCase()}`;
+    keys[key] = true;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }));
+    requestAnimationFrame(() => {
+      keys[key] = false;
+      window.dispatchEvent(new KeyboardEvent('keyup', { key, code, bubbles: true }));
+    });
+  }
+
+  function setJoystickDirection(dx, dy) {
+    const threshold = 0.24;
+    keys.w = dy < -threshold;
+    keys.s = dy > threshold;
+    keys.a = dx < -threshold;
+    keys.d = dx > threshold;
+  }
+
+  function resetJoystick() {
+    keys.w = keys.a = keys.s = keys.d = false;
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+  }
+
+  function updateJoystick(event) {
+    const rect = joystick.getBoundingClientRect();
+    const radius = rect.width * 0.3;
+    let dx = event.clientX - (rect.left + rect.width / 2);
+    let dy = event.clientY - (rect.top + rect.height / 2);
+    const length = Math.hypot(dx, dy) || 1;
+    if (length > radius) {
+      dx = (dx / length) * radius;
+      dy = (dy / length) * radius;
+    }
+    joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    setJoystickDirection(dx / radius, dy / radius);
+  }
+
+  function refreshContextButton() {
+    if (!touchControls) return;
+    const prompt = [...document.querySelectorAll('.context-prompt')]
+      .find(el => el.dataset.mobileKey && Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
+    if (!prompt && player.canMount) {
+      contextBtn.textContent = 'MOUNT';
+      contextBtn.dataset.key = 'e';
+      contextBtn.style.display = 'block';
+      return;
+    }
+    if (!prompt) {
+      contextBtn.style.display = 'none';
+      contextBtn.dataset.key = '';
+      return;
+    }
+    const key = prompt.dataset.mobileKey;
+    const promptText = prompt.textContent;
+    let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH' })[key] || 'ACTION';
+    if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
+    if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
+    if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
+    contextBtn.textContent = label || 'ACTION';
+    contextBtn.dataset.key = key;
+    contextBtn.style.display = 'block';
+  }
+
+  function refreshMobileButtons() {
+    if (!touchControls) return;
+    callHorseBtn.style.display = player.mounted ? 'none' : 'block';
+    dismountBtn.style.display = player.mounted ? 'block' : 'none';
+    gallopBtn.textContent = player.mounted ? 'GALLOP' : 'SPRINT';
+    document.getElementById('rearBtn').style.display = player.mounted ? 'block' : 'none';
+  }
+
+  async function launchMobileGame() {
+    startAudio(audio);
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock('landscape');
+      }
+    } catch (_) {
+      // Browsers may deny fullscreen/orientation locking; the game remains playable.
+    }
+    mobileLaunch.classList.add('is-hidden');
+    if (intro.active) intro.skip();
+  }
+
+  if (touchControls) {
+    document.body.classList.add('touch-controls');
+    let joystickPointer = null;
+    joystick.addEventListener('pointerdown', e => {
+      joystickPointer = e.pointerId;
+      joystick.setPointerCapture(e.pointerId);
+      updateJoystick(e);
+      startAudio(audio);
+      e.preventDefault();
+    });
+    joystick.addEventListener('pointermove', e => {
+      if (e.pointerId === joystickPointer) updateJoystick(e);
+    });
+    const endJoystick = e => {
+      if (e.pointerId !== joystickPointer) return;
+      joystickPointer = null;
+      resetJoystick();
+    };
+    joystick.addEventListener('pointerup', endJoystick);
+    joystick.addEventListener('pointercancel', endJoystick);
+    contextBtn.addEventListener('pointerdown', e => {
+      pulseKey(contextBtn.dataset.key);
+      startAudio(audio);
+      e.preventDefault();
+    });
+    callHorseBtn.addEventListener('pointerdown', e => {
+      pulseKey('h');
+      e.preventDefault();
+    });
+    dismountBtn.addEventListener('pointerdown', e => {
+      pulseKey('e');
+      e.preventDefault();
+    });
+    seasonBtn.addEventListener('pointerdown', e => {
+      climate.skipSeason();
+      startAudio(audio);
+      e.preventDefault();
+    });
+    sensitivitySlider.addEventListener('input', e => {
+      setLookSensitivity(e.target.value);
+    });
+    sensitivitySlider.addEventListener('pointerdown', e => {
+      startAudio(audio);
+    });
+    zoomOutBtn.addEventListener('pointerdown', e => {
+      changeCameraZoom(2.2);
+      startAudio(audio);
+      e.preventDefault();
+    });
+    zoomInBtn.addEventListener('pointerdown', e => {
+      changeCameraZoom(-2.2);
+      startAudio(audio);
+      e.preventDefault();
+    });
+    mobileLaunchBtn.addEventListener('click', launchMobileGame);
+    refreshMobileButtons();
+  } else {
+    [
+      document.getElementById('dpad'), gallopBtn, document.getElementById('rearBtn'),
+      joystick, contextBtn, document.getElementById('mobileQuickActions'), mobileSensitivity, mobileZoomActions, mobileLaunch
+    ].forEach(el => { el.style.display = 'none'; });
+  }
 
   // climate skip is now triggered by keyboard (`k`) — no HUD button
 
@@ -178,9 +351,28 @@ import { createBinoculars } from './binoculars.js';
   let camYawOffset = 0.15;
   let camPitch = 0.38;
   let camDist = 13;
+  let lookSensitivity = 1;
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
+  let lastManualLook = 0;
+
+  function refreshCameraControls() {
+    const percent = Math.round(lookSensitivity * 100);
+    sensitivitySlider.value = String(percent);
+    sensitivityValue.textContent = `LOOK ${percent}%`;
+  }
+
+  function setLookSensitivity(value) {
+    lookSensitivity = THREE.MathUtils.clamp(Number(value) / 100, 0.5, 1.5);
+    refreshCameraControls();
+  }
+
+  function changeCameraZoom(amount) {
+    camDist = THREE.MathUtils.clamp(camDist + amount, 6, 36);
+  }
+
+  refreshCameraControls();
 
   const domEl = renderer.domElement;
   domEl.style.touchAction = 'none';
@@ -199,16 +391,24 @@ import { createBinoculars } from './binoculars.js';
     const dy = e.clientY - lastY;
     lastX = e.clientX;
     lastY = e.clientY;
-    camYawOffset -= dx * 0.006;
-    camPitch = THREE.MathUtils.clamp(camPitch - dy * 0.004, 0.08, 1.1);
+    camYawOffset -= dx * 0.006 * lookSensitivity;
+    camPitch = THREE.MathUtils.clamp(camPitch - dy * 0.004 * lookSensitivity, -1.3, 1.4);
+    lastManualLook = performance.now();
   });
   domEl.addEventListener('wheel', e => {
     camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.02, 6, 36);
     e.preventDefault();
   }, { passive: false });
   
-  // dblclick canvas-wrap to enter fullscreen (uses browser default fullscreen)
-  domEl.addEventListener('dblclick', () => {
+  // Desktop can fullscreen the canvas; mobile must fullscreen the document so HUD controls remain visible.
+  domEl.addEventListener('dblclick', e => {
+    e.preventDefault();
+    if (touchControls) {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      return;
+    }
     const wrap = document.getElementById('canvas-wrap');
     if (wrap.requestFullscreen) wrap.requestFullscreen();
     else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
@@ -251,11 +451,15 @@ import { createBinoculars } from './binoculars.js';
 
       player.update(dt, keys, structures.fireGroup);
       traversal.update(dt, keys, player.position);
+      player.setBinocularsActive(binoculars.active);
 
-      if (Math.abs(player.speed) > 0.15) {
+      if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
       }
-      player.updateCamera(dt, elapsed, camera, camYawOffset, camPitch, camDist);
+      player.updateCamera(
+        dt, elapsed, camera, camYawOffset, camPitch,
+        house.resting ? Math.min(camDist, 3.8) : camDist
+      );
 
       house.update(dt, elapsed, player);
     }
@@ -263,20 +467,34 @@ import { createBinoculars } from './binoculars.js';
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
     landmarks.update(dt, elapsed, isSummer);
-    const speciesProgress = collectibles.update(dt, elapsed, player.group.position, landmarks.PD_POS);
+    waterfall.update(dt, elapsed);
+    const dMillpond = Math.hypot(
+      player.group.position.x - landmarks.PD_POS.x,
+      player.group.position.z - landmarks.PD_POS.z
+    );
+    const dTwinFalls = Math.hypot(
+      player.group.position.x - waterfall.pondPos.x,
+      player.group.position.z - waterfall.pondPos.z
+    );
+    const nearestPond = dTwinFalls < dMillpond ? waterfall.pondPos : landmarks.PD_POS;
+    const speciesProgress = collectibles.update(dt, elapsed, player.group.position, nearestPond);
     climate.update(dt, elapsed);
     fireflies.update(dt, elapsed, 1 - climate.dayAmt);
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
     constellations.update(dt, camera, 1 - climate.dayAmt);
     soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
     binoculars.update(dt, camera, player.group.position, name => ui.isDiscovered(name));
+    player.setBinocularsActive(binoculars.active);
     ui.update(dt, player, climate, speciesProgress);
+    refreshContextButton();
+    refreshMobileButtons();
 
     vegetation.clouds.forEach(c => {
       c.position.x += c.userData.drift * dt;
       if (c.position.x > 280) c.position.x = -280;
     });
 
+    house.updateWindowView();
     renderer.render(scene, camera);
 
     if (firstFrame) {

@@ -10,6 +10,7 @@ export function createClimate(deps) {
     moon,
     moonGlow,
     starsMat,
+    planetsGroup,
     groundMat,
     treeLeafMat,
     cherryCanopyMats,
@@ -168,6 +169,10 @@ export function createClimate(deps) {
     hemiLight.intensity = THREE.MathUtils.lerp(0.22, 0.6, dayAmt);
     sunMesh.material.opacity = dayAmt;
     starsMat.opacity = (1 - dayAmt) * 0.78;
+    skyUniforms.nightAmt.value = 1 - dayAmt;
+    planetsGroup.children.forEach(planet => {
+      planet.material.opacity = (1 - dayAmt) * 0.9;
+    });
 
     const seasonSkyTop = lerpHex(cur.skyTop, nxt.skyTop, blend).clone();
     const seasonSkyBottom = lerpHex(cur.skyBottom, nxt.skyBottom, blend).clone();
