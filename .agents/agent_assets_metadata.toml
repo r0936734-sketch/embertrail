@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "DSOryK9NJFSQx8C1TY9sh"
+uri = "file://android/app/build/outputs/apk/debug/app-debug.apk"
+type = "unspecified"
+title = "Embertrail — app-debug.apk (7.1 MB)"

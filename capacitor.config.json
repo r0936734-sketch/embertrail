@@ -1,0 +1,24 @@
+{
+  "appId": "com.aloksingh.embertrail",
+  "appName": "Embertrail",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#04090f",
+    "buildOptions": {
+      "keystorePath": "release.keystore",
+      "keystoreAlias": "embertrail",
+      "keystorePassword": "embertrail123",
+      "keystoreAliasPassword": "embertrail123",
+      "releaseType": "APK"
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}
