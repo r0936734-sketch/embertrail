@@ -1,7 +1,7 @@
 // collectibles.js — gatherable items, fishing, journal/sketchbook UI
 
 export function createCollectibles(scene, terrainHeight) {
-
+  const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   // ── item catalogue ──────────────────────────────────────────────────────
   const TYPES = [
     { id: 'flower_red',    label: 'Red Wildflower',    emoji: '🌸', color: 0xff5566, category: 'flora' },
@@ -151,8 +151,9 @@ export function createCollectibles(scene, terrainHeight) {
       if (d < 3.5 && d < minD) { closest = item; minD = d; }
     }
     _nearItem = closest;
-    gatherPrompt.textContent  = _nearItem ? `Press G to collect ${_nearItem.td.label}` : '';
-    gatherPrompt.style.opacity = _nearItem ? '1' : '0';
+gatherPrompt.textContent = _nearItem
+      ? (touchControls ? `Tap ACTION to collect ${_nearItem.td.label}` : `Press G to collect ${_nearItem.td.label}`)
+      : '';    gatherPrompt.style.opacity = _nearItem ? '1' : '0';
 
     // fishing
     fishing.update(dt, t, playerPos, pondPos);
@@ -204,14 +205,12 @@ function _buildFishing(TYPES, collected, showToast) {
     const near = dist < 10;
 
     if (!active) {
-      promptEl.textContent   = near ? 'Press C to cast a line' : '';
-      promptEl.style.opacity = near ? '1' : '0';
+promptEl.textContent   = near ? (touchControls ? 'Tap ACTION to cast a line' : 'Press C to cast a line') : '';      promptEl.style.opacity = near ? '1' : '0';
       barWrap.style.opacity  = '0';
     }
 
     if (active) {
-      promptEl.textContent   = 'Fishing… (C to stop)';
-      promptEl.style.opacity = '1';
+promptEl.textContent   = touchControls ? 'Fishing… (tap ACTION to stop)' : 'Fishing… (C to stop)';      promptEl.style.opacity = '1';
       barWrap.style.opacity  = '1';
 
       // progress varies — mimics waiting patiently

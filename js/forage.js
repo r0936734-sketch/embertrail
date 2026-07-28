@@ -2,6 +2,7 @@
 // Walk close and press G to gather; they respawn after a while.
 // Drop-in replacement — same API.
 export function createForage({ scene, terrainHeight, inventory, onEvent = () => {} }) {
+   const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   const KINDS = {
     branch:  { color: 0x6a4a2a, label: '🪵 Branch',  count: 26, yOff: 0.18, spin: 0.6 },
     feather: { color: 0xe4dccb, label: '🪶 Feather', count: 16, yOff: 0.28, spin: 1.4 },
@@ -180,7 +181,9 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
       }
       nearest.mesh.scale.setScalar(1.12 + Math.sin(performance.now() * 0.006) * 0.04);
 
-      prompt.textContent = `G · gather ${KINDS[nearest.kind].label}`;
+      prompt.textContent = touchControls
+        ? `Tap ACTION to gather ${KINDS[nearest.kind].label}`
+        : `G · gather ${KINDS[nearest.kind].label}`;
       prompt.style.opacity = '1';
 
       const g = !!keys['g'];

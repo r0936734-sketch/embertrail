@@ -22,15 +22,14 @@ export function createRange({
 
   const targets = [];
   const layout = [
-    { distance: 28, lateral: -3.5, scale: 1.08 },
-    { distance: 38, lateral: 4.2, scale: 1.02 },
-    { distance: 49, lateral: -5.2, scale: 0.96 },
-    { distance: 61, lateral: 3.6, scale: 0.92 },
-    { distance: 73, lateral: -4.5, scale: 0.88 },
-    { distance: 83, lateral: 5.6, scale: 0.84 },
-    { distance: 92, lateral: -2.2, scale: 0.8 }
-  ];
-
+  { distance: 28, lateral: -3.5, scale: 1.08 },
+  { distance: 38, lateral: 4.2,  scale: 1.02 },
+  { distance: 49, lateral: -5.2, scale: 0.96 },
+  { distance: 61, lateral: 3.6,  scale: 0.92 },
+  { distance: 73, lateral: -4.5, scale: 0.88 },
+  { distance: 83, lateral: 5.6,  scale: 0.84 },
+  { distance: 92, lateral: -2.2, scale: 0.8 }
+];
   function lanePoint(distance, lateral = 0) {
     return {
       x: origin.x + lane.x * distance + laneRight.x * lateral,
@@ -89,7 +88,7 @@ export function createRange({
 
     archery.register({
       name: `ridge-target-${i}`,
-      radius: 1.05 * scale,
+      radius: 1.05 * Math.max(scale, 0.95 + distance * 0.006),
       getPos: worldPos,
       onHit: (power, at) => {
         const p = worldPos();

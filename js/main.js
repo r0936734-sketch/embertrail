@@ -472,16 +472,28 @@ import { createQuests } from './quests.js';
   const domEl = renderer.domElement;
   domEl.style.touchAction = 'none';
   domEl.addEventListener('contextmenu', e => e.preventDefault());
+  let dragPointerId = null;
   domEl.addEventListener('pointerdown', e => {
+    if (dragging) return;
     dragging = true;
+    dragPointerId = e.pointerId;
     lastX = e.clientX;
     lastY = e.clientY;
     startAudio(audio);
     if (intro.active) intro.skip();
   });
-  window.addEventListener('pointerup', () => { dragging = false; });
+  window.addEventListener('pointerup', e => {
+    if (e.pointerId !== dragPointerId) return;
+    dragging = false;
+    dragPointerId = null;
+  });
+  window.addEventListener('pointercancel', e => {
+    if (e.pointerId !== dragPointerId) return;
+    dragging = false;
+    dragPointerId = null;
+  });
   window.addEventListener('pointermove', e => {
-    if (!dragging) return;
+    if (!dragging || e.pointerId !== dragPointerId) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;

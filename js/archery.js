@@ -12,11 +12,11 @@ export function createArchery({
   getAimOffset = () => 0,
   onEvent = () => {}
 }) {
-  const GRAVITY = 18;
-  const MAX_SPEED = 62;
-  const MIN_SPEED = 26;
+  const GRAVITY = 10;        // was 18 — less drop over distance
+const MAX_SPEED = 85;       // was 62 — reaches far targets faster/flatter
+const MIN_SPEED = 40;       // was 26 — even weak draws still reach range targets
   const DRAW_TIME = 1.1;
-  const ARROW_LIFE = 9;
+  const ARROW_LIFE = 14;
 
   // ---------- hit registry ----------
   // register({ getPos(), radius, onHit(power, arrowPos), name })
@@ -141,16 +141,35 @@ export function createArchery({
   function sweptHit(start, end, center, radius) {
     segmentDelta.subVectors(end, start);
     const lengthSq = segmentDelta.lengthSq();
-    let progress = 0;
-    if (lengthSq > 0.000001) {
-      progress = THREE.MathUtils.clamp(
-        segmentDelta.dot(tmpPos.subVectors(center, start)) / lengthSq,
-        0,
-        1
-      );
+    const effectiveRadius = Math.max(radius, 0.7) + 0.18;
+    const effectiveRadiusSq = effectiveRadius * effectiveRadius;
+
+    if (lengthSq <= 0.000001) {
+      impactPoint.copy(start);
+      return impactPoint.distanceToSquared(center) <= effectiveRadiusSq;
     }
-    impactPoint.copy(segmentDelta).multiplyScalar(progress).add(start);
-    return impactPoint.distanceToSquared(center) <= radius * radius;
+
+    const steps = Math.max(4, Math.min(16, Math.ceil(Math.sqrt(lengthSq) / 0.35)));
+    const step = 1 / steps;
+    let bestDistSq = Infinity;
+    let bestPoint = null;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i * step;
+      impactPoint.copy(start).lerp(end, t);
+      const distSq = impactPoint.distanceToSquared(center);
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestPoint = impactPoint.clone();
+      }
+      if (distSq <= effectiveRadiusSq) {
+        impactPoint.copy(bestPoint || impactPoint);
+        return true;
+      }
+    }
+
+    impactPoint.copy(bestPoint || end);
+    return false;
   }
 
   function fire() {
