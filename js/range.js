@@ -73,13 +73,25 @@ export function createRange({
       t.add(leg);
     });
 
-    const face = new THREE.Group();
+   const face = new THREE.Group();
     face.position.y = 1.9;
     t.add(face);
-    [[1.0, white], [0.66, red], [0.32, white], [0.14, gold]].forEach(([r, m]) => {
+    const rings = [[1.0, white], [0.66, red], [0.32, white], [0.14, gold]];
+
+    // Front stack: rings nest toward the shooter (+z), smallest ring closest.
+    rings.forEach(([r, m]) => {
       const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.08, 20), m);
       disc.rotation.x = Math.PI / 2;
       disc.position.z = 0.02 * (1.0 - r) * 10;
+      face.add(disc);
+    });
+
+    // Back stack: a mirrored set of rings so the target reads correctly
+    // from behind too, instead of being occluded by the front base disc.
+    rings.forEach(([r, m]) => {
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.08, 20), m);
+      disc.rotation.x = Math.PI / 2;
+      disc.position.z = -0.06 - 0.02 * (1.0 - r) * 10;
       face.add(disc);
     });
 

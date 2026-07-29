@@ -404,11 +404,35 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
   document.body.appendChild(fadeEl);
 
   const bookLines = [
-    "The pages describe an old trail south of the ridge, half-erased by water damage.",
-    "A pressed wildflower marks a page about the valley's first snowfall.",
-    'Someone has scrawled a note in the margin: "the deer come back every spring."',
-    'A hand-drawn map shows a crossing near the gorge, marked with a small star.'
-  ];
+  "The ink whispers: 'Every trail remembers the footsteps that forget it.'",
+  "A faded sketch of a mountain bears the words: 'The summit is never conquered—only borrowed.'",
+  "Pressed between the pages lies a crimson maple leaf that has somehow never withered.",
+  "Someone wrote in trembling handwriting: 'The forest does not hide secrets. It waits for those who stop searching.'",
+
+  "धर्मो रक्षति रक्षितः — 'Dharma protects those who protect it.'",
+  "यतो धर्मस्ततो जयः — 'Where there is Dharma, there is victory.'",
+  "The margin reads: 'Power without compassion becomes another form of darkness.'",
+  "A page is stained with ash. Beneath it: 'Even fire bows before time.'",
+
+  "The old monk wrote: 'The river never argues with the stone. It simply continues flowing.'",
+  "One page is completely blank except for a single sentence: 'Silence is also an answer.'",
+  "A charcoal drawing of a deer is captioned: 'Only the patient witness miracles.'",
+  "The parchment smells faintly of cedar and rain.",
+
+  "कर्मण्येवाधिकारस्ते मा फलेषु कदाचन — 'Your duty is to act, never to cling to the reward.'",
+  "The next line has been scratched out, as if someone wished the truth forgotten.",
+  "A note says: 'Fear walks faster than wisdom, but never farther.'",
+  "The paper feels strangely warm, though the air is cold.",
+
+  "वसुधैव कुटुम्बकम् — 'The whole world is one family.'",
+  "Someone added below: 'The trees knew this long before humans did.'",
+  "The map ends abruptly at a circle labeled only: 'Where echoes become memories.'",
+  "A feather rests inside the book. It crumbles into glowing dust when touched.",
+
+  "The final page simply asks: 'When the journey ends... who is left to arrive?'",
+  "अहिंसा परमो धर्मः — 'Non-violence is the highest Dharma.'",
+  "The last sentence is barely visible: 'The forest never belonged to us. We were merely invited.'"
+];
 
   let inside = false;
   let transitioning = false;

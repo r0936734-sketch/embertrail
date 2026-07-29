@@ -6,7 +6,11 @@
   <title>Embertrail — A Living Trail</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,800;0,9..144,900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/launch.css">
 </head>
 <body>
   <div id="loadingScreen">LOADING WORLD<div class="sub">shaping mountains, seeding seasons…</div></div>
@@ -14,6 +18,13 @@
   <!-- ── LAUNCH / CREDITS / HOW TO PLAY ───────────────────────────────── -->
   <div id="launchOverlay" class="launch-overlay">
     <div class="launch-bg-glow"></div>
+    <div class="launch-mountains" aria-hidden="true"></div>
+    <div class="ember-field" aria-hidden="true">
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span><span class="ember"></span>
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span><span class="ember"></span>
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span><span class="ember"></span>
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span><span class="ember"></span>
+    </div>
 
     <!-- Page 1: Credits -->
     <div class="launch-page active" id="launchPageCredits">
@@ -199,6 +210,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/launch.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

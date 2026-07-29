@@ -12,11 +12,11 @@ export function createArchery({
   getAimOffset = () => 0,
   onEvent = () => {}
 }) {
-  const GRAVITY = 10;        // was 18 — less drop over distance
+  const GRAVITY = 0;        // was 18 — less drop over distance
 const MAX_SPEED = 85;       // was 62 — reaches far targets faster/flatter
-const MIN_SPEED = 40;       // was 26 — even weak draws still reach range targets
+const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targets
   const DRAW_TIME = 1.1;
-  const ARROW_LIFE = 14;
+  const ARROW_LIFE = 100;
 
   // ---------- hit registry ----------
   // register({ getPos(), radius, onHit(power, arrowPos), name })

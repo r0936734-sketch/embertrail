@@ -1,5 +1,7 @@
 import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
 import { createScene } from './scene.js';
+import { createRuins } from './ruins.js';
+import { createFlameTower } from './flametower.js';
 import { createTerrain } from './terrain.js';
 import { createTelevision } from './television.js';
 import { createCollisionSystem } from './collision.js';
@@ -53,9 +55,11 @@ import { createQuests } from './quests.js';
   const wildlife = createWildlife(scene, terrain.terrainHeight);
   const landmarks = createLandmarks(scene, terrain.terrainHeight, collision);
   const waterfall = createWaterfall(scene, terrain.terrainHeight, collision);
+  const ruins = createRuins(scene, terrain.terrainHeight, collision);
   const collectibles = createCollectibles(scene, terrain.terrainHeight);
   const fireflies = createFireflies(scene, terrain.terrainHeight);
   const weather = createWeather(scene);
+
   const constellations = createConstellations(scene, starsMat);
   const soundscape = createSoundscape(audio, {
     ridge: { x: 95, z: -72 },
@@ -67,17 +71,17 @@ import { createQuests } from './quests.js';
   const house = createHouse(scene, terrain.terrainHeight, collision, renderer);
 
   const player = createPlayer(
-  scene,
-  terrain.terrainHeight,
-  terrain.terrainNormalApprox,
-  (strength) => playHoof(audio, strength),
-  () => playWhistle(audio),
-  () => playRear(audio),
-  collision
-);
+    scene,
+    terrain.terrainHeight,
+    terrain.terrainNormalApprox,
+    (strength) => playHoof(audio, strength),
+    () => playWhistle(audio),
+    () => playRear(audio),
+    collision
+  );
 
   const climate = createClimate({
-    scene,                                    // ← important
+    scene,
     skyUniforms,
     ambientLight,
     hemiLight,
@@ -107,12 +111,12 @@ import { createQuests } from './quests.js';
   const interiorFloorY = terrain.terrainHeight(housePos.x, housePos.z) - 400;
 
   const tv = createTelevision(scene, {
-  position: { x: housePos.x - 7.7, y: interiorFloorY + 1.55, z: housePos.z - 1.0 },
-  rotationY: Math.PI / 2,
-  interactRadius: 5,   // how close to show the prompt / press V
-  keepOnRadius: 14,    // how far you can walk before it turns off
-  collision
-});
+    position: { x: housePos.x - 7.7, y: interiorFloorY + 1.55, z: housePos.z - 1.0 },
+    rotationY: Math.PI / 2,
+    interactRadius: 5,
+    keepOnRadius: 14,
+    collision
+  });
 
   const traversal = createTraversal(
     scene,
@@ -123,7 +127,18 @@ import { createQuests } from './quests.js';
     house.ziplineAnchor
   );
 
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList], key => {
+  // Flame Tower world position (shared by POI lists before the tower is constructed,
+  // since createFlameTower needs archery which is created further below).
+  const FLAME_TOWER_POS = { x: 130, z: 60 };
+  const flameTowerPoi = {
+    name: 'The Flame Tower',
+    pos: { x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
+    r: 16,
+    flavor:
+      'An old stone beacon rises above the ridge. Its crown is cold — a well-aimed arrow might wake the signal fire once more.'
+  };
+
+  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, ...ruins.poiList, flameTowerPoi], key => {
     if (key !== 'climbUnlock') return;
     player.unlockClimb();
     const toast = document.createElement('div');
@@ -145,7 +160,9 @@ import { createQuests } from './quests.js';
     ...landmarks.poiList.map(p => ({ name: p.name, x: p.pos.x, z: p.pos.z })),
     { name: 'Sunveil Ridge', x: 95, z: -72 },
     { name: 'Northern Pines', x: -55, z: -30 },
-    { name: 'Eastern Meadow', x: 48, z: 28 }
+    { name: 'Eastern Meadow', x: 48, z: 28 },
+    { name: 'The Sunken Ruins', x: ruins.RUINS_POS.x, z: ruins.RUINS_POS.z },
+    { name: 'The Flame Tower', x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -160,6 +177,21 @@ import { createQuests } from './quests.js';
     getAimOffset: () => camYawOffset,
     onEvent: (type, data) => quests.handleEvent(type, data)
   });
+
+  // Flame Tower requires archery for the beacon target registration.
+  const flameTower = createFlameTower({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    collision,
+    archery,
+    position: FLAME_TOWER_POS,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'towerLit') quests.toast('🔥 The beacon roars to life!');
+      if (type === 'towerExtinguished') quests.toast('The rain has doused the flame tower.');
+    }
+  });
+
   const hunting = createHunting({
     scene,
     terrainHeight: terrain.terrainHeight,
@@ -333,39 +365,40 @@ import { createQuests } from './quests.js';
   }
 
   function refreshContextButton() {
-  if (!touchControls) return;
+    if (!touchControls) return;
 
-  // Read inline style opacity (set by each module's JS) — not getComputedStyle,
-  // which would be overridden by CSS visibility rules on mobile.
-  const prompts = [...document.querySelectorAll('.context-prompt')]
-    .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
+    // Read inline style opacity (set by each module's JS) — not getComputedStyle,
+    // which would be overridden by CSS visibility rules on mobile.
+    const prompts = [...document.querySelectorAll('.context-prompt')]
+      .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
 
-  // Priority: TV (v) first, then anything else
-  const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
+    // Priority: TV (v) first, then anything else
+    const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
 
-  if (!prompt && player.canMount) {
-    contextBtn.textContent = 'MOUNT';
-    contextBtn.dataset.key = 'e';
+    if (!prompt && player.canMount) {
+      contextBtn.textContent = 'MOUNT';
+      contextBtn.dataset.key = 'e';
+      contextBtn.style.display = 'block';
+      return;
+    }
+    if (!prompt) {
+      contextBtn.style.display = 'none';
+      contextBtn.dataset.key = '';
+      return;
+    }
+
+    const key = prompt.dataset.mobileKey;
+    const promptText = prompt.textContent;
+    let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
+    if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
+    if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
+    if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
+    if (key === 'v') label = /turn off/i.test(promptText) ? 'TV OFF' : 'TV';
+    contextBtn.textContent = label || 'ACTION';
+    contextBtn.dataset.key = key;
     contextBtn.style.display = 'block';
-    return;
-  }
-  if (!prompt) {
-    contextBtn.style.display = 'none';
-    contextBtn.dataset.key = '';
-    return;
   }
 
-  const key = prompt.dataset.mobileKey;
-  const promptText = prompt.textContent;
-  let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
-  if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
-  if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
-  if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
-  if (key === 'v') label = /turn off/i.test(promptText) ? 'TV OFF' : 'TV';
-  contextBtn.textContent = label || 'ACTION';
-  contextBtn.dataset.key = key;
-  contextBtn.style.display = 'block';
-}
   function refreshMobileButtons() {
     if (!touchControls) return;
     callHorseBtn.style.display = player.mounted ? 'none' : 'block';
@@ -606,34 +639,50 @@ import { createQuests } from './quests.js';
 
   // ── Pinch-to-zoom (two-finger) ───────────────────────────────────────
   let pinchDist = null;
+
+  function canvasTouches(e) {
+    // Only count fingers that actually started on the canvas — otherwise a
+    // finger held on the AIM button (or any other HUD button) gets counted
+    // toward e.touches.length too, since TouchList is page-wide, and that
+    // falsely triggers pinch-zoom / kills the look-drag while aiming.
+    return Array.from(e.touches).filter(t => t.target === domEl);
+  }
+
   domEl.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
+    const ct = canvasTouches(e);
+    if (ct.length === 2) {
       pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
+        ct[0].clientX - ct[1].clientX,
+        ct[0].clientY - ct[1].clientY
       );
       e.preventDefault();
+    } else {
+      pinchDist = null;
     }
   }, { passive: false });
+
   domEl.addEventListener('touchmove', e => {
-    if (e.touches.length === 2 && pinchDist !== null) {
+    const ct = canvasTouches(e);
+    if (ct.length === 2 && pinchDist !== null) {
       const newDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
+        ct[0].clientX - ct[1].clientX,
+        ct[0].clientY - ct[1].clientY
       );
       const delta = pinchDist - newDist;
       camDist = THREE.MathUtils.clamp(camDist + delta * 0.04, 6, 36);
       pinchDist = newDist;
-      // Cancel camera drag while pinching
       dragging = false;
       e.preventDefault();
+    } else if (ct.length < 2) {
+      pinchDist = null;
     }
   }, { passive: false });
+
   domEl.addEventListener('touchend', e => {
-    if (e.touches.length < 2) pinchDist = null;
+    if (canvasTouches(e).length < 2) pinchDist = null;
   }, { passive: false });
   // ────────────────────────────────────────────────────────────────────
-  
+
   // Desktop can fullscreen the canvas; mobile must fullscreen the document so HUD controls remain visible.
   domEl.addEventListener('dblclick', e => {
     e.preventDefault();
@@ -655,7 +704,7 @@ import { createQuests } from './quests.js';
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
-  
+
 
   // ---------- main loop ----------
   let lastTime = performance.now();
@@ -694,7 +743,8 @@ import { createQuests } from './quests.js';
       inventory.update(dt, keys, () => quests.handleEvent('craft'));
       quests.update(dt, keys);
       forage.update(dt, keys, player.position);
-
+      ruins.update(dt, elapsed);
+      flameTower.update(dt, elapsed, { isRaining: weather.isRaining, rainAmount: weather.rainAmount });
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
       }
