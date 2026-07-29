@@ -447,46 +447,45 @@
 }
 
 /* Landscape + short height: this is the actual "phone sideways" case.
-   Lay the credits page out horizontally so it uses the wide dimension
-   instead of stacking, guaranteeing PLAY sits in the same first screen. */
+   Deliberately staying in a single column here (never row) — a row
+   layout's combined width can exceed a narrow phone's viewport and
+   clip off both edges. Instead we keep shrinking vertically until the
+   whole stack, PLAY included, fits one screen tall. */
 @media (max-height: 520px) and (orientation: landscape) {
-  #launchPageCredits {
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 22px;
-    text-align: left;
-  }
-  #launchPageCredits .launch-logo {
-    flex: 0 0 auto;
-    align-items: flex-start;
-    text-align: left;
-  }
-  #launchPageCredits .launch-title-sub { flex-direction: column; align-items: flex-start; gap: 3px; }
-  #launchPageCredits .launch-title-sub::before,
-  #launchPageCredits .launch-title-sub::after { display: none; }
+  .launch-overlay { padding: 8px 16px; }
+  .launch-mountains { height: 18vh; }
+  .launch-page { gap: 6px; }
 
-  #launchPageCredits .launch-credits-box { flex: 1 1 300px; max-width: 340px; }
-  #launchPageCredits .credit-small { display: none; }
+  .launch-logo { gap: 4px; }
+  .launch-title-main { font-size: clamp(16px, 5.5dvh, 24px); }
+  .launch-title-sub { font-size: 7.5px; }
 
-  #launchPageCredits .launch-btn-col {
-    flex: 0 0 152px;
-    margin-top: 0;
-  }
+  .launch-credits-box { padding: 7px 14px; }
+  .credit-header { font-size: 7.5px; margin-bottom: 1px; }
+  .credit-name { font-size: 13px; }
+  .credit-link { font-size: 10px; }
+  .credit-detail { font-size: 9px; }
+  .credit-small { display: none; }
+  .credit-divider { margin: 5px 0; }
 
-  /* How-to-play: widen the grid to use landscape space and drop the
-     description line so eight cards + PLAY still fit one screen tall. */
-  #launchPageHowTo { gap: 8px; }
-  #launchPageHowTo .howto-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  #launchPageHowTo .howto-desc { display: none; }
-  #launchPageHowTo .howto-tip { display: none; }
+  .launch-btn-col { gap: 6px; margin-top: 2px; }
+  .launch-btn { padding: 7px 16px; font-size: 9.5px; }
+
+  .launch-section-title { font-size: 13px; }
+  .howto-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .howto-card { padding: 5px 4px; gap: 2px; }
+  .howto-icon { font-size: 14px; }
+  .howto-label { font-size: 6.5px; }
+  .howto-desc { display: none; }
+  .howto-tip { font-size: 8px; padding: 4px 8px; }
 }
 
 @media (max-height: 380px) and (orientation: landscape) {
-  #launchPageCredits .launch-title-main { font-size: 20px; }
-  #launchPageCredits .credit-name { font-size: 13px; }
-  #launchPageCredits .launch-credits-box { padding: 8px 14px; }
-  #launchPageCredits .credit-divider { margin: 5px 0; }
+  .launch-title-main { font-size: 15px; }
+  .credit-name { font-size: 12px; }
+  .launch-credits-box { padding: 5px 12px; }
+  .credit-divider { margin: 4px 0; }
+  .howto-tip { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
