@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm run copy-web && npx cap sync android",
+    "copy-web": "rm -rf www && mkdir -p www && cp -r index.html css js favicon.svg favicon.ico *.mp3 *.jpg www/ 2>/dev/null; true"
   },
   "keywords": [],
   "author": "",
