@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Embertrail — A Living Trail</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
@@ -39,7 +39,10 @@
         <div class="credit-row credit-detail credit-small">All audio belongs to their respective original creators.<br>No copyright ownership is claimed by this project.</div>
       </div>
 
-      <button class="launch-btn" id="btnHowToPlay">HOW TO PLAY →</button>
+      <div class="launch-btn-col">
+        <button class="launch-btn launch-btn-primary launch-btn-play" id="btnPlayCredits">▶ &nbsp;PLAY</button>
+        <button class="launch-btn launch-btn-howto" id="btnHowToPlay">HOW TO PLAY</button>
+      </div>
     </div>
 
     <!-- Page 2: How to Play -->
@@ -93,7 +96,20 @@
 
       <div class="launch-btn-row">
         <button class="launch-btn launch-btn-secondary" id="btnBackToCredits">← BACK</button>
-        <button class="launch-btn launch-btn-primary" id="btnPlay">▶ PLAY</button>
+        <button class="launch-btn launch-btn-primary" id="btnPlay">▶ &nbsp;PLAY</button>
+      </div>
+    </div>
+  </div>
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+
+  <!-- ── EXIT CONFIRMATION DIALOG ─────────────────────────────────────── -->
+  <div id="exitDialog" class="exit-dialog-overlay" style="display:none">
+    <div class="exit-dialog-box">
+      <div class="exit-dialog-title">EXIT GAME?</div>
+      <div class="exit-dialog-msg">Are you sure you want to exit Embertrail?</div>
+      <div class="exit-dialog-btns">
+        <button id="exitNo"  class="exit-btn exit-btn-no">NO</button>
+        <button id="exitYes" class="exit-btn exit-btn-yes">YES</button>
       </div>
     </div>
   </div>

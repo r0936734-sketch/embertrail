@@ -257,6 +257,7 @@ import { createQuests } from './quests.js';
   const btnHowToPlay = document.getElementById('btnHowToPlay');
   const btnBackToCredits = document.getElementById('btnBackToCredits');
   const btnPlay = document.getElementById('btnPlay');
+  const btnPlayCredits = document.getElementById('btnPlayCredits');
   contextBtn.style.display = 'none';
 
   function showLaunchPage(pageEl) {
@@ -267,6 +268,7 @@ import { createQuests } from './quests.js';
   btnHowToPlay.addEventListener('click', () => { showLaunchPage(launchPageHowTo); });
   btnBackToCredits.addEventListener('click', () => { showLaunchPage(launchPageCredits); });
   btnPlay.addEventListener('click', launchGame);
+  if (btnPlayCredits) btnPlayCredits.addEventListener('click', launchGame);
   // Also allow pressing any key on desktop to launch
   document.addEventListener('keydown', function onFirstKey(e) {
     if (launchOverlay && !launchOverlay.classList.contains('is-hidden')) {
@@ -333,9 +335,10 @@ import { createQuests } from './quests.js';
   function refreshContextButton() {
   if (!touchControls) return;
 
-  // Prefer the TV prompt if it is visible
+  // Read inline style opacity (set by each module's JS) — not getComputedStyle,
+  // which would be overridden by CSS visibility rules on mobile.
   const prompts = [...document.querySelectorAll('.context-prompt')]
-    .filter(el => el.dataset.mobileKey && Number.parseFloat(getComputedStyle(el).opacity) > 0.5);
+    .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
 
   // Priority: TV (v) first, then anything else
   const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
@@ -372,7 +375,10 @@ import { createQuests } from './quests.js';
     bowBtn.style.display = player.canUseArchery ? 'block' : 'none';
   }
 
+  let gameStarted = false;
+
   async function launchGame() {
+    if (gameStarted) return; // prevent double-fire
     startAudio(audio);
     try {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -385,8 +391,45 @@ import { createQuests } from './quests.js';
       // Browsers may deny fullscreen/orientation locking; the game remains playable.
     }
     if (launchOverlay) launchOverlay.classList.add('is-hidden');
-    // Let the intro fly-by play instead of skipping it
+    // Reset and start the intro fly-by fresh now that the player pressed Play
+    intro.reset();
+    gameStarted = true;
   }
+
+  // ── Android back-button → exit confirmation dialog ──────────────────
+  const exitDialog = document.getElementById('exitDialog');
+  const exitYes    = document.getElementById('exitYes');
+  const exitNo     = document.getElementById('exitNo');
+
+  function showExitDialog() {
+    if (exitDialog) exitDialog.style.display = 'flex';
+  }
+  function hideExitDialog() {
+    if (exitDialog) exitDialog.style.display = 'none';
+  }
+
+  if (exitYes) exitYes.addEventListener('click', () => {
+    // Try Capacitor App plugin first, then standard window.close
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+        window.Capacitor.Plugins.App.exitApp();
+      } else {
+        window.close();
+      }
+    } catch (_) { window.close(); }
+  });
+  if (exitNo) exitNo.addEventListener('click', hideExitDialog);
+
+  // Push a dummy history entry so the first back-press pops it (not exits)
+  history.pushState({ embertrail: true }, '');
+  window.addEventListener('popstate', () => {
+    // Re-push so the next back press fires popstate again
+    history.pushState({ embertrail: true }, '');
+    // If the launch overlay is still visible, just ignore — no game yet
+    if (launchOverlay && !launchOverlay.classList.contains('is-hidden')) return;
+    showExitDialog();
+  });
+  // ────────────────────────────────────────────────────────────────────
 
   if (touchControls) {
     document.body.classList.add('touch-controls');
@@ -560,6 +603,36 @@ import { createQuests } from './quests.js';
     camDist = THREE.MathUtils.clamp(camDist + e.deltaY * 0.02, 6, 36);
     e.preventDefault();
   }, { passive: false });
+
+  // ── Pinch-to-zoom (two-finger) ───────────────────────────────────────
+  let pinchDist = null;
+  domEl.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      e.preventDefault();
+    }
+  }, { passive: false });
+  domEl.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && pinchDist !== null) {
+      const newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const delta = pinchDist - newDist;
+      camDist = THREE.MathUtils.clamp(camDist + delta * 0.04, 6, 36);
+      pinchDist = newDist;
+      // Cancel camera drag while pinching
+      dragging = false;
+      e.preventDefault();
+    }
+  }, { passive: false });
+  domEl.addEventListener('touchend', e => {
+    if (e.touches.length < 2) pinchDist = null;
+  }, { passive: false });
+  // ────────────────────────────────────────────────────────────────────
   
   // Desktop can fullscreen the canvas; mobile must fullscreen the document so HUD controls remain visible.
   domEl.addEventListener('dblclick', e => {
@@ -602,7 +675,8 @@ import { createQuests } from './quests.js';
     const isSummer = climate.getSeasonName() === 'summer';
 
     if (intro.active) {
-      intro.update(dt);
+      // Only advance the intro fly-by after the player has pressed Play
+      if (gameStarted) intro.update(dt);
     } else {
       structures.updateFire(elapsed, isSummer);
 
