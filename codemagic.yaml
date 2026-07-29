@@ -1,0 +1,34 @@
+workflows:
+  android-build:
+    name: Android Build
+
+    environment:
+      node: 20
+      java: 21
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm ci || npm install
+
+      - name: Build web assets
+        script: |
+          npm run build
+
+      - name: Sync Capacitor
+        script: |
+          npx cap sync android
+
+      - name: Build Debug APK
+        script: |
+          cd android
+          ./gradlew assembleDebug
+
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
