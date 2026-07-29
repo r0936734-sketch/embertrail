@@ -404,12 +404,89 @@
 .exit-btn-yes { background: rgba(196, 64, 47, 0.18); border-color: rgba(220, 90, 70, 0.45); color: #ffd9d0; }
 .exit-btn-yes:hover { background: rgba(196, 64, 47, 0.32); }
 
-/* ---------- small screens ---------- */
+/* ---------- small screens (tall/portrait phones) ---------- */
 @media (max-width: 640px) {
   .launch-title-main { font-size: clamp(30px, 10vw, 44px); }
   .launch-credits-box { padding: 18px 18px; }
   .howto-grid { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
   .howto-desc { font-size: 10.8px; }
+}
+
+/* ---------- short viewport (mobile landscape) ----------
+   Embertrail is meant to be played in landscape on phones, where the
+   viewport is wide but very short (often 360–430px tall). Below, the
+   credits page switches from a vertical stack to a single horizontal
+   row — logo, plaque, buttons side by side — so PLAY is always on
+   screen with zero scrolling. Sizes also scale off viewport height
+   (vh/dvh) so they shrink together as the screen gets shorter. */
+@media (max-height: 560px) {
+  .launch-overlay { height: 100dvh; padding: 10px 16px; }
+  .launch-mountains { height: 24vh; }
+  .launch-page { max-height: 100dvh; overflow: hidden; gap: 10px; }
+
+  .launch-title-main { font-size: clamp(18px, 6.5dvh, 32px); }
+  .launch-title-sub { font-size: 8.5px; letter-spacing: 0.22em; gap: 8px; }
+  .launch-title-sub::before, .launch-title-sub::after { width: 16px; }
+
+  .launch-credits-box { padding: 10px 18px; }
+  .credit-header { font-size: 8.5px; margin-bottom: 2px; }
+  .credit-name { font-size: 15px; }
+  .credit-detail { font-size: 10px; }
+  .credit-small { font-size: 8.5px; }
+  .credit-divider { margin: 7px 0; }
+
+  .launch-btn { padding: 9px 16px; font-size: 10.5px; }
+
+  .launch-section-title { font-size: clamp(16px, 5.5dvh, 22px); }
+  .howto-grid { gap: 6px; }
+  .howto-card { padding: 7px 5px; gap: 3px; }
+  .howto-icon { font-size: 17px; }
+  .howto-label { font-size: 7.5px; }
+  .howto-desc { font-size: 8px; line-height: 1.25; }
+  .howto-tip { font-size: 9px; padding: 5px 10px; }
+}
+
+/* Landscape + short height: this is the actual "phone sideways" case.
+   Lay the credits page out horizontally so it uses the wide dimension
+   instead of stacking, guaranteeing PLAY sits in the same first screen. */
+@media (max-height: 520px) and (orientation: landscape) {
+  #launchPageCredits {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    text-align: left;
+  }
+  #launchPageCredits .launch-logo {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    text-align: left;
+  }
+  #launchPageCredits .launch-title-sub { flex-direction: column; align-items: flex-start; gap: 3px; }
+  #launchPageCredits .launch-title-sub::before,
+  #launchPageCredits .launch-title-sub::after { display: none; }
+
+  #launchPageCredits .launch-credits-box { flex: 1 1 300px; max-width: 340px; }
+  #launchPageCredits .credit-small { display: none; }
+
+  #launchPageCredits .launch-btn-col {
+    flex: 0 0 152px;
+    margin-top: 0;
+  }
+
+  /* How-to-play: widen the grid to use landscape space and drop the
+     description line so eight cards + PLAY still fit one screen tall. */
+  #launchPageHowTo { gap: 8px; }
+  #launchPageHowTo .howto-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #launchPageHowTo .howto-desc { display: none; }
+  #launchPageHowTo .howto-tip { display: none; }
+}
+
+@media (max-height: 380px) and (orientation: landscape) {
+  #launchPageCredits .launch-title-main { font-size: 20px; }
+  #launchPageCredits .credit-name { font-size: 13px; }
+  #launchPageCredits .launch-credits-box { padding: 8px 14px; }
+  #launchPageCredits .credit-divider { margin: 5px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
