@@ -1,20 +1,21 @@
 export function createScene() {
   const wrap = document.getElementById('canvas-wrap');
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x5b7086, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   wrap.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x5b7086, 55, 280);
+  scene.fog = new THREE.Fog(0x5b7086, 60, 240);
 
   const baseFov = 55;
   const camera = new THREE.PerspectiveCamera(
     baseFov,
     window.innerWidth / window.innerHeight,
-    0.1,
-    1400
+    0.5,
+    2000
   );
   camera.position.set(0, 60, 140);
 
@@ -24,14 +25,14 @@ export function createScene() {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // lights
-  const ambientLight = new THREE.AmbientLight(0x33456b, 0.95);
+  // lights (optimized for performance)
+  const ambientLight = new THREE.AmbientLight(0x33456b, 0.6); // Reduced intensity
   scene.add(ambientLight);
-  const hemiLight = new THREE.HemisphereLight(0xaec6e0, 0x3a3226, 0.55);
+  const hemiLight = new THREE.HemisphereLight(0xaec6e0, 0x3a3226, 0.3); // Reduced intensity
   scene.add(hemiLight);
-  const sunLight = new THREE.DirectionalLight(0xffe3b0, 0.2);
+  const sunLight = new THREE.DirectionalLight(0xffe3b0, 0.1); // Reduced intensity
   scene.add(sunLight);
-  const moonLight = new THREE.DirectionalLight(0xaebedd, 0.35);
+  const moonLight = new THREE.DirectionalLight(0xaebedd, 0.15); // Reduced intensity
   moonLight.position.set(-60, 90, -40);
   scene.add(moonLight);
 
@@ -42,7 +43,7 @@ export function createScene() {
     nightAmt: { value: 0 }
   };
 
-  const skyGeo = new THREE.SphereGeometry(550, 28, 18);
+  const skyGeo = new THREE.SphereGeometry(550, 16, 12); // Reduced segments for performance
   const skyMat = new THREE.ShaderMaterial({
     uniforms: Object.assign(skyUniforms, { offset: { value: 15 }, exponent: { value: 0.7 } }),
     vertexShader: `

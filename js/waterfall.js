@@ -7,6 +7,7 @@ export function createWaterfall(scene, terrainHeight, collision) {
   const baseY = terrainHeight(WF_POS.x, WF_POS.z);
   const group = new THREE.Group();
   group.position.set(WF_POS.x, baseY, WF_POS.z);
+  group.visible = false;
   scene.add(group);
 
   // ── materials ──────────────────────────────────────────────────────────
@@ -367,7 +368,25 @@ export function createWaterfall(scene, terrainHeight, collision) {
     m.geo.attributes.position.needsUpdate = true;
   }
 
-  function update(dt, t) {
+  let isVisible = false;
+  const RENDER_DISTANCE = 120;
+
+  function setVisibility(playerPos) {
+    const dist = Math.hypot(playerPos.x - WF_POS.x, playerPos.z - WF_POS.z);
+    const shouldRender = dist < RENDER_DISTANCE;
+    
+    if (shouldRender !== isVisible) {
+      isVisible = shouldRender;
+      group.visible = isVisible;
+    }
+  }
+
+  function update(dt, t, playerPos) {
+    setVisibility(playerPos);
+    
+    // Skip heavy particle updates when not visible
+    if (!isVisible) return;
+
     updateStream(streamL, dt, t);
     updateStream(streamR, dt, t);
     updateStream(sprayL, dt, t);

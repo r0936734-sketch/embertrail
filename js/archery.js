@@ -36,6 +36,20 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
   const bowLimbMat = new THREE.MeshStandardMaterial({ color: 0x6b4426, roughness: 0.9, flatShading: true });
   const bowGripMat = new THREE.MeshStandardMaterial({ color: 0x3f2a19, roughness: 0.9, flatShading: true });
   const stringMat  = new THREE.MeshBasicMaterial({ color: 0xe9e2d0 });
+  
+  // Fiery arrow materials
+  const fieryMat   = new THREE.MeshStandardMaterial({ 
+    color: 0xff6600, 
+    emissive: 0xff4400, 
+    emissiveIntensity: 2, 
+    roughness: 0.8, 
+    flatShading: true 
+  });
+  const glowMat    = new THREE.MeshBasicMaterial({ 
+    color: 0xffaa00, 
+    transparent: true, 
+    opacity: 0.6 
+  });
 
   // Head points toward local -Z so it lines up with an object's forward
   // direction after either lookAt() (flying arrows) or a quaternion copy
@@ -45,7 +59,7 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.0, 5), shaftMat);
     shaft.rotation.x = Math.PI / 2;
     g.add(shaft);
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 4), headMat);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 4), fieryMat);
     head.rotation.x = -Math.PI / 2;
     head.position.z = -0.58;
     g.add(head);
@@ -56,6 +70,18 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
       f.rotation.y = Math.PI / 2;
       g.add(f);
     }
+    
+    // Add fiery glow effect around the arrow head
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), glowMat);
+    glow.position.z = -0.4;
+    g.add(glow);
+    
+    // Add point light for dynamic lighting
+    const arrowLight = new THREE.PointLight(0xff6600, 0.6, 2.5, 1.2);
+    arrowLight.position.z = -0.4;
+    g.add(arrowLight);
+    g.userData.light = arrowLight;
+    
     return g;
   }
 
@@ -193,7 +219,7 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
       life: ARROW_LIFE,
       power
     });
-    kick = 1;
+    kick = 0; // Removed kick entirely to prevent camera jump
     onEvent('shot', { power });
   }
 
@@ -203,13 +229,27 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     flashTimer = 1.2;
   }
 
-  function landArrow(a, pos, life = 22) {
+  function landArrow(a, pos, life = 999) {
     a.mesh.position.copy(pos);
     scene.add(a.mesh);
-    stuck.push({ mesh: a.mesh, life });
-    if (stuck.length > 26) {
+    stuck.push({ mesh: a.mesh, life: 999 }); // Arrows stay indefinitely
+    if (stuck.length > 50) { // Increased limit
       const old = stuck.shift();
       scene.remove(old.mesh);
+    }
+  }
+
+  // Clear stuck arrows when player moves significantly
+  let lastPlayerPos = new THREE.Vector3();
+  function clearArrowsOnMove() {
+    const currentPos = player.group?.position || player.position;
+    if (currentPos) {
+      const moveDist = currentPos.distanceTo(lastPlayerPos);
+      if (moveDist > 5) { // Clear arrows if player moves 5+ units
+        stuck.forEach(s => scene.remove(s.mesh));
+        stuck.length = 0;
+        lastPlayerPos.copy(currentPos);
+      }
     }
   }
 
@@ -221,9 +261,9 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     bow.translateZ(-0.6);
     bow.rotateY(-0.14);
     bow.rotateZ(0.09);
-    // tiny idle sway + shot kick so the held bow doesn't feel welded to the screen
+    // tiny idle sway (removed kick)
     bow.translateX(Math.sin(t * 1.6) * 0.006);
-    bow.translateY(Math.sin(t * 2.1) * 0.005 - kick * 0.08);
+    bow.translateY(Math.sin(t * 2.1) * 0.005);
 
     const nockZ = -0.05 + pull * 0.34;
     stringGeo.attributes.position.setXYZ(1, 0.02, 0, nockZ);
@@ -233,10 +273,13 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
 
   function update(dt, keys, t = 0) {
     cooldown = Math.max(0, cooldown - dt);
-    kick = Math.max(0, kick - dt * 4);
+    // Removed kick decay since kick is now 0
     const mounted = !!player.mounted;
     const canAim = !mounted && !player.sitting && (player.canUseArchery === undefined || player.canUseArchery);
     const wantAim = !!keys['f'] && canAim;
+
+    // Clear arrows on player movement
+    clearArrowsOnMove();
 
     // draw / release
     if (wantAim && !drawing && cooldown <= 0) { drawing = true; draw = 0; }
@@ -284,9 +327,8 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
           a.mesh.position.copy(impactPoint);
           tg.onHit(a.power, impactPoint.clone());
           onEvent('hit', { name: tg.name, power: a.power });
-          // stays visibly stuck at the point of impact for a few seconds
-          // instead of just vanishing
-          landArrow(a, a.mesh.position, 7);
+          // stays visibly stuck at the point of impact indefinitely
+          landArrow(a, a.mesh.position, 999);
           consumed = true;
           break;
         }
@@ -294,7 +336,8 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
       if (consumed) { arrows.splice(i, 1); continue; }
 
       const gy = terrainHeight(a.mesh.position.x, a.mesh.position.z);
-      if (a.mesh.position.y <= gy + 0.05) {
+      // Only land on ground if below reasonable height (space enemies are high up)
+      if (a.mesh.position.y <= gy + 0.05 && a.mesh.position.y < 50) {
         a.mesh.position.y = gy + 0.04;
         landArrow(a, a.mesh.position);
         onEvent('miss', {});
@@ -303,7 +346,8 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
       }
 
       if (a.life <= 0 || Math.hypot(a.mesh.position.x, a.mesh.position.z) > 320) {
-        scene.remove(a.mesh);
+        // Arrow expires in mid-air - show it briefly before disappearing
+        landArrow(a, a.mesh.position, 2); // Short life for expired arrows
         arrows.splice(i, 1);
       }
     }

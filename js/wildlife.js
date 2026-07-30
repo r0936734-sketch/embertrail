@@ -63,7 +63,7 @@ export function createWildlife(scene, terrainHeight) {
   const deerHerd = [];
   const deerHomes = [
     { x: -40, z: -18 }, { x: 30, z: -25 }, { x: -8, z: 40 },
-    { x: 45, z: 20 }, { x: -55, z: -4 }, { x: 12, z: -48 }, { x: -62, z: 22 }
+    { x: 45, z: 20 }, { x: -55, z: -4 }
   ];
   deerHomes.forEach(home => {
     const d = makeDeer();
@@ -112,8 +112,7 @@ export function createWildlife(scene, terrainHeight) {
   const rabbits = [];
   const rabbitHomes = [
     { x: -11, z: -2 }, { x: -28, z: 14 }, { x: -40, z: 30 },
-    { x: 12, z: 9 }, { x: 6, z: -6 }, { x: -20, z: 18 },
-    { x: 22, z: -18 }, { x: -52, z: 8 }
+    { x: 12, z: 9 }, { x: 6, z: -6 }, { x: -20, z: 18 }
   ];
   rabbitHomes.forEach(home => {
     const g = makeRabbit();
@@ -147,7 +146,7 @@ export function createWildlife(scene, terrainHeight) {
   }
 
   const birdFlocks = [];
-  for (let f = 0; f < 3; f++) {
+  for (let f = 0; f < 2; f++) {
     const center = { x: (Math.random() - 0.5) * 160, z: (Math.random() - 0.5) * 160 };
     const flock = {
       center,
@@ -157,7 +156,7 @@ export function createWildlife(scene, terrainHeight) {
       speed: 0.16 + Math.random() * 0.09,
       birds: []
     };
-    const n = 9 + Math.floor(Math.random() * 5);
+    const n = 5 + Math.floor(Math.random() * 3);
     for (let i = 0; i < n; i++) {
       const b = makeBird();
       scene.add(b.group);

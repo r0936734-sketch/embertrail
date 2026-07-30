@@ -850,21 +850,20 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       // True first-person sight view: the eye, reticle and arrow direction
       // share the same sightline, with fully free look while the bow is drawn.
       const aimYaw = walker.rotation.y + camYawOffset;
-      const aimPitch = THREE.MathUtils.clamp(camPitch, -1.15, 1.15);
+      const aimPitch = THREE.MathUtils.clamp(camPitch, -0.65, 1.15);
       const horizontal = Math.cos(aimPitch);
       const dirX = Math.sin(aimYaw) * horizontal;
       const dirY = Math.sin(aimPitch);
       const dirZ = Math.cos(aimYaw) * horizontal;
 
       camPos.set(walker.position.x, walker.position.y + 1.62, walker.position.z);
-      if (!isInside) {
-        camPos.y = Math.max(camPos.y, terrainHeight(camPos.x, camPos.z) + 1.55);
-      }
+      // Skip terrain height check entirely when aiming to prevent camera snapping
       camTarget.set(camPos.x + dirX * 70, camPos.y + dirY * 70, camPos.z + dirZ * 70);
       const zoomFov = THREE.MathUtils.lerp(50, 34, archeryDraw);
       camera.fov = THREE.MathUtils.lerp(camera.fov, zoomFov, Math.min(1, dt * 10));
       camera.updateProjectionMatrix();
-      camera.position.lerp(camPos, Math.min(1, dt * 16));
+      // Direct camera positioning to prevent smoothing issues
+      camera.position.copy(camPos);
       camera.lookAt(camTarget);
       return;
     }

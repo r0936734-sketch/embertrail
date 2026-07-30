@@ -1,6 +1,8 @@
-import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
+import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear, playHit } from './audio.js';
 import { createScene } from './scene.js';
-import { createRuins } from './ruins.js';
+import { createSpaceEnemies } from './spaceEnemy.js';
+import { createWindmill } from './windmill.js';
+import { createMysticStone } from './mysticStone.js';
 import { createFlameTower } from './flametower.js';
 import { createTerrain } from './terrain.js';
 import { createTelevision } from './television.js';
@@ -55,7 +57,6 @@ import { createQuests } from './quests.js';
   const wildlife = createWildlife(scene, terrain.terrainHeight);
   const landmarks = createLandmarks(scene, terrain.terrainHeight, collision);
   const waterfall = createWaterfall(scene, terrain.terrainHeight, collision);
-  const ruins = createRuins(scene, terrain.terrainHeight, collision);
   const collectibles = createCollectibles(scene, terrain.terrainHeight);
   const fireflies = createFireflies(scene, terrain.terrainHeight);
   const weather = createWeather(scene);
@@ -137,32 +138,14 @@ import { createQuests } from './quests.js';
     flavor:
       'An old stone beacon rises above the ridge. Its crown is cold — a well-aimed arrow might wake the signal fire once more.'
   };
-
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, ...ruins.poiList, flameTowerPoi], key => {
-    if (key !== 'climbUnlock') return;
-    player.unlockClimb();
-    const toast = document.createElement('div');
-    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
-    Object.assign(toast.style, {
-      position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
-      color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
-      borderRadius: '10px', fontSize: '14px', maxWidth: '70vw', textAlign: 'center',
-      zIndex: 60, opacity: '0', transition: 'opacity 0.6s'
-    });
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => { toast.style.opacity = '1'; });
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 700);
-    }, 4500);
-  });
   const binocularPois = [
     ...landmarks.poiList.map(p => ({ name: p.name, x: p.pos.x, z: p.pos.z })),
     { name: 'Sunveil Ridge', x: 95, z: -72 },
     { name: 'Northern Pines', x: -55, z: -30 },
     { name: 'Eastern Meadow', x: 48, z: 28 },
-    { name: 'The Sunken Ruins', x: ruins.RUINS_POS.x, z: ruins.RUINS_POS.z },
-    { name: 'The Flame Tower', x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z }
+    { name: 'The Flame Tower', x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
+    { name: 'The Old Windmill', x: 30, z: 55 },
+    { name: 'Mystic Stone', x: 65, z: 35 }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -178,6 +161,16 @@ import { createQuests } from './quests.js';
     onEvent: (type, data) => quests.handleEvent(type, data)
   });
 
+  const spaceEnemies = createSpaceEnemies({
+    scene,
+    archery,
+    center: { x: 0, z: 0 },
+    playHitSound: () => playHit(audio),
+    onEvent: (type, data) => {
+      if (type === 'spaceKill') quests.toast(`💥 Direct hit — +${data.points} pts`);
+    }
+  });
+
   // Flame Tower requires archery for the beacon target registration.
   const flameTower = createFlameTower({
     scene,
@@ -189,6 +182,28 @@ import { createQuests } from './quests.js';
       quests.handleEvent(type, data);
       if (type === 'towerLit') quests.toast('🔥 The beacon roars to life!');
       if (type === 'towerExtinguished') quests.toast('The rain has doused the flame tower.');
+    }
+  });
+
+  const windmill = createWindmill({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    collision,
+    archery,
+    position: { x: 30, z: 55 },
+    onEvent: (type, data) => {
+      if (type === 'millUnlocked') quests.toast('🌬️ The old sails creak and begin to turn once more.');
+    }
+  });
+
+  const mysticStone = createMysticStone({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    archery,
+    position: { x: 65, z: 35 },
+    onEvent: (type, data) => {
+      if (type === 'stoneActivated') quests.toast('✨ The ancient stone awakens with magical light!');
+      if (type === 'stoneColorChanged') quests.toast('🎨 The stone shifts to a new color!');
     }
   });
 
@@ -211,6 +226,56 @@ import { createQuests } from './quests.js';
     },
     origin: { x: 95, z: -72 },
     targetDirection: { x: -0.66, z: 0.75 }
+  });
+
+  // Create UI after all POIs are created
+  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList], key => {
+    if (key !== 'climbUnlock') return;
+    player.unlockClimb();
+    const toast = document.createElement('div');
+    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
+    Object.assign(toast.style, {
+      position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
+      color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
+      borderRadius: '10px', fontSize: '14px', maxWidth: '70vw', textAlign: 'center',
+      zIndex: 60, opacity: '0', transition: 'opacity 0.6s'
+    });
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 700);
+    }, 4500);
+  });
+
+  // Add simple exploration targets at various locations
+  const explorationTargets = [
+    { x: 50, z: 60, name: "Ancient Tree" },
+    { x: -60, z: -40, name: "Stone Circle" },
+    { x: 30, z: -50, name: "Hidden Pond" },
+    { x: -30, z: 70, name: "Windmill Hill" },
+    { x: 80, z: 25, name: "East Glade" }
+  ];
+
+  const explorationMarkers = [];
+  explorationTargets.forEach(target => {
+    const marker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.4, 2, 6),
+      new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 1, flatShading: true })
+    );
+    marker.position.set(target.x, terrain.terrainHeight(target.x, target.z) + 1, target.z);
+    marker.visible = false;
+    scene.add(marker);
+    
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.4 })
+    );
+    glow.position.set(target.x, terrain.terrainHeight(target.x, target.z) + 2.5, target.z);
+    glow.visible = false;
+    scene.add(glow);
+    
+    explorationMarkers.push({ marker, glow, x: target.x, z: target.z });
   });
   const forage = createForage({
     scene,
@@ -629,7 +694,7 @@ import { createQuests } from './quests.js';
     camYawOffset -= dx * 0.006 * lookSensitivity;
     // Positive dy = finger/mouse moved DOWN = camera should look down (pitch increases)
     // Negative dy = finger/mouse moved UP   = camera should look up  (pitch decreases)
-    camPitch = THREE.MathUtils.clamp(camPitch + dy * 0.004 * lookSensitivity, -1.3, 1.4);
+    camPitch = THREE.MathUtils.clamp(camPitch + dy * 0.004 * lookSensitivity, -0.65, 1.4);
     lastManualLook = performance.now();
   });
   domEl.addEventListener('wheel', e => {
@@ -743,7 +808,6 @@ import { createQuests } from './quests.js';
       inventory.update(dt, keys, () => quests.handleEvent('craft'));
       quests.update(dt, keys);
       forage.update(dt, keys, player.position);
-      ruins.update(dt, elapsed);
       flameTower.update(dt, elapsed, { isRaining: weather.isRaining, rainAmount: weather.rainAmount });
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
@@ -760,9 +824,10 @@ import { createQuests } from './quests.js';
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
     hunting.update(dt, elapsed, player.position);
-    range.update(dt, camera);
+    range.update(dt, camera, player.group.position);
+    spaceEnemies.update(dt, elapsed);
     landmarks.update(dt, elapsed, isSummer);
-    waterfall.update(dt, elapsed);
+    waterfall.update(dt, elapsed, player.group.position);
     const dMillpond = Math.hypot(
       player.group.position.x - landmarks.PD_POS.x,
       player.group.position.z - landmarks.PD_POS.z
@@ -775,6 +840,17 @@ import { createQuests } from './quests.js';
     const speciesProgress = collectibles.update(dt, elapsed, player.group.position, nearestPond);
     climate.update(dt, elapsed);
     fireflies.update(dt, elapsed, 1 - climate.dayAmt);
+    windmill.update(dt, elapsed, windX, 1 - climate.dayAmt, player.group.position);
+    mysticStone.update(dt, elapsed, player.group.position);
+    
+    // Update exploration markers visibility
+    explorationMarkers.forEach(em => {
+      const dist = Math.hypot(player.group.position.x - em.x, player.group.position.z - em.z);
+      const shouldRender = dist < 120;
+      em.marker.visible = shouldRender;
+      em.glow.visible = shouldRender;
+    });
+    
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
     constellations.update(dt, camera, 1 - climate.dayAmt);
     soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
