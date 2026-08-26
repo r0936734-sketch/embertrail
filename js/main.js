@@ -31,6 +31,7 @@ import { createHunting } from './hunting.js';
 import { createRange } from './range.js';
 import { createForage } from './forage.js';
 import { createQuests } from './quests.js';
+import { createWorld } from './world.js';
 
 (function () {
   'use strict';
@@ -65,7 +66,7 @@ import { createQuests } from './quests.js';
   const constellations = createConstellations(scene, starsMat);
   const soundscape = createSoundscape(audio, {
     ridge: { x: 95, z: -72 },
-    waters: [{ x: 52, z: 36 }, { x: -62, z: -48 }, { x: 0, z: 0 }],
+    waters: [{ x: 52, z: 36 }, { x: -62, z: -48 }, { x: 0, z: 0 }, { x: 38, z: 178 }],
     meadow: { x: 48, z: 28 }
   });
 
@@ -146,7 +147,15 @@ import { createQuests } from './quests.js';
     { name: 'Eastern Meadow', x: 48, z: 28 },
     { name: 'The Flame Tower', x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
     { name: 'The Old Windmill', x: 30, z: 55 },
-    { name: 'Mystic Stone', x: 65, z: 35 }
+    { name: 'Mystic Stone', x: 65, z: 35 },
+    { name: 'Emberford', x: -148, z: 48 },
+    { name: 'Saltmarsh Docks', x: 38, z: 178 },
+    { name: 'The Quiet Abbey', x: -188, z: 132 },
+    { name: 'Lantern Market', x: 168, z: 148 },
+    { name: 'Ashen Ruins', x: 214, z: -52 },
+    { name: 'Skywatch Observatory', x: 52, z: -188 },
+    { name: 'Wolfhollow', x: -176, z: -128 },
+    { name: 'Farshot Practice Range', x: 250, z: 260 }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -154,6 +163,13 @@ import { createQuests } from './quests.js';
   // ---------- hunting / activities ----------
   const inventory = createInventory(18);
   const quests = createQuests({ inventory });
+  const world = createWorld(scene, terrain.terrainHeight, collision, {
+    inventory,
+    onEvent: (type, data) => quests.handleEvent(type, data)
+  });
+  world.setQuests(quests);
+  collectibles.setOnEvent((type, data) => quests.handleEvent(type, data));
+  constellations.setOnNamed((type, data) => quests.handleEvent(type, data));
   const archery = createArchery({
     scene, camera, player,
     terrainHeight: terrain.terrainHeight,
@@ -221,16 +237,22 @@ import { createQuests } from './quests.js';
     scene,
     terrainHeight: terrain.terrainHeight,
     archery,
+    inventory,
     onEvent: (type, data) => {
       quests.handleEvent(type, data);
       if (type === 'trialEnd') quests.toast(`Time trial over — ${data.score} points`);
     },
-    origin: { x: 95, z: -72 },
-    targetDirection: { x: -0.66, z: 0.75 }
+    // Farshot is deliberately away from the cabin and Eastern Meadow.
+    origin: { x: 250, z: 260 },
+    targetDirection: { x: -1, z: 0 }
   });
 
   // Create UI after all POIs are created
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList], key => {
+  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList], key => {
+    if (typeof key === 'string' && key.startsWith('poi:')) {
+      quests.discover(key.slice(4));
+      return;
+    }
     if (key !== 'climbUnlock') return;
     player.unlockClimb();
     const toast = document.createElement('div');
@@ -804,7 +826,16 @@ import { createQuests } from './quests.js';
 
       // The cabin owns E while close to its door (or an item inside it);
       // elsewhere E keeps its normal mount/dismount behaviour.
-      if (keys['e'] && house.tryInteract(player)) keys['e'] = false;
+      if (keys['e']) {
+        if (world.isTalking) {
+          world.tryInteract(player);
+          keys['e'] = false;
+        } else if (house.tryInteract(player)) {
+          keys['e'] = false;
+        } else if (world.tryInteract(player)) {
+          keys['e'] = false;
+        }
+      }
 
       // Update archery first: F then owns the bow draw rather than the nearby-fire sit action.
       archery.update(dt, keys, elapsed);
@@ -816,6 +847,7 @@ import { createQuests } from './quests.js';
       inventory.update(dt, keys, () => quests.handleEvent('craft'));
       quests.update(dt, keys);
       forage.update(dt, keys, player.position);
+      world.update(dt, elapsed, player.position, player.speed);
       flameTower.update(dt, elapsed, { isRaining: weather.isRaining, rainAmount: weather.rainAmount });
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
@@ -829,12 +861,13 @@ import { createQuests } from './quests.js';
       tv.update(dt, keys, player.position, camera);
     }
 
-    vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
     hunting.update(dt, elapsed, player.position);
-    range.update(dt, camera, player.group.position);
+    // Use the active player position so the range remains available while
+    // dismounted instead of tracking the horse left behind elsewhere.
+    range.update(dt, camera, player.position);
     spaceEnemies.update(dt, elapsed);
-    landmarks.update(dt, elapsed, isSummer);
+    landmarks.update(dt, elapsed, isSummer, player.group.position);
     waterfall.update(dt, elapsed, player.group.position);
     const dMillpond = Math.hypot(
       player.group.position.x - landmarks.PD_POS.x,
@@ -882,7 +915,7 @@ import { createQuests } from './quests.js';
       });
     }
 
-    house.updateWindowView();
+    if (updateVisuals) house.updateWindowView();
     renderer.render(scene, camera);
 
     if (firstFrame) {

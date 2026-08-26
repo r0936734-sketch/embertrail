@@ -1,4 +1,4 @@
-export function createConstellations(scene, starsMat) {
+export function createConstellations(scene, starsMat, onNamed = () => {}) {
   const R = 470;
   const defs = [
     { name: 'The Wanderer', az: 20,  el: 62, pts: [[0,0],[6,3],[11,1],[15,5],[9,-4]] },
@@ -60,6 +60,7 @@ export function createConstellations(scene, starsMat) {
   const learned = new Set();
   let captionTimer = 0;
   let lookingAt = null;
+  let emitNamed = onNamed;
 
   window.addEventListener('keydown', e => {
     if (e.key.toLowerCase() !== 'l') return;
@@ -68,6 +69,7 @@ export function createConstellations(scene, starsMat) {
     capEl.textContent = `✦ ${lookingAt.name}`;
     capEl.style.opacity = '1';
     captionTimer = 3.5;
+    emitNamed('named', { name: lookingAt.name });
   });
 
   function update(dt, camera, nightAmt) {
@@ -94,5 +96,10 @@ export function createConstellations(scene, starsMat) {
     }
   }
 
-  return { update, get learnedCount() { return learned.size; }, get totalCount() { return defs.length; } };
+  return {
+    update,
+    setOnNamed(fn) { emitNamed = fn; },
+    get learnedCount() { return learned.size; },
+    get totalCount() { return defs.length; }
+  };
 }

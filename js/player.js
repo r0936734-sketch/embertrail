@@ -20,6 +20,8 @@
 // this file is a drop-in replacement — nothing else needs to change.
 // ============================================================================
 
+import { clampToWorld } from './perf.js';
+
 export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoofFn, playWhistleFn, playRearFn, collision) {
   const player = new THREE.Group();
   const horseMat = new THREE.MeshStandardMaterial({ color: 0x6b3a22, roughness: 1, flatShading: true });
@@ -562,6 +564,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walker.rotation.y = heading;
       walker.position.x += Math.sin(heading) * speed * dt;
       walker.position.z += Math.cos(heading) * speed * dt;
+      const walkBound = clampToWorld(walker.position.x, walker.position.z);
+      walker.position.x = walkBound.x;
+      walker.position.z = walkBound.z;
       if (collision) {
         const resolved = collision.resolve({ x: walker.position.x, z: walker.position.z }, WALK_RADIUS);
         walker.position.x = resolved.x;
@@ -678,6 +683,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     player.rotation.y = heading;
     player.position.x += Math.sin(heading) * speed * dt;
     player.position.z += Math.cos(heading) * speed * dt;
+    const rideBound = clampToWorld(player.position.x, player.position.z);
+    player.position.x = rideBound.x;
+    player.position.z = rideBound.z;
     if (collision) {
       const resolved = collision.resolve({ x: player.position.x, z: player.position.z }, HORSE_RADIUS);
       player.position.x = resolved.x;

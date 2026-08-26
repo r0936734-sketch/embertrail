@@ -40,8 +40,10 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     roof.position.y = h + h * 0.18;
     roof.rotation.y = Math.PI / 4;
     g.add(roof);
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.35, 0.08), darkWood);
-    door.position.set(0, 0.7, d * 0.5 + 0.02);
+    // Keep the doorway readable at the same scale as the full-size villagers.
+    const doorH = Math.max(1.85, h * 0.52);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.2, w * 0.22), doorH, 0.08), darkWood);
+    door.position.set(0, doorH * 0.5, d * 0.5 + 0.02);
     g.add(door);
     scene.add(g);
     if (collision) collision.addCollider(x, z, Math.max(w, d) * 0.42);
@@ -68,31 +70,124 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     props.push(g);
   }
 
+  function lantern(x, z, color = 0xffb45b) {
+    const g = new THREE.Group();
+    g.position.set(x, placeY(x, z), z);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 2.7, 6), darkWood);
+    post.position.y = 1.35;
+    const lampMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 });
+    const lamp = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), lampMat);
+    lamp.position.y = 2.47;
+    g.add(post, lamp);
+    const light = new THREE.PointLight(color, 0.6, 7, 2);
+    light.position.y = 2.45;
+    g.add(light);
+    scene.add(g);
+    props.push(g);
+  }
+
+  function crateStack(x, z, yaw = 0) {
+    const g = new THREE.Group();
+    g.position.set(x, placeY(x, z), z);
+    g.rotation.y = yaw;
+    const crateA = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.82, 0.9), wood);
+    crateA.position.set(-0.32, 0.41, 0);
+    const crateB = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.68, 0.72), wood);
+    crateB.position.set(0.32, 0.34, 0.08);
+    crateB.rotation.y = 0.25;
+    g.add(crateA, crateB);
+    scene.add(g);
+    props.push(g);
+  }
+
   function makePerson(palette, scale = 1) {
     const g = new THREE.Group();
     const skin = new THREE.MeshLambertMaterial({ color: palette.skin, flatShading: true });
     const shirt = new THREE.MeshLambertMaterial({ color: palette.shirt, flatShading: true });
     const pants = new THREE.MeshLambertMaterial({ color: palette.pants, flatShading: true });
     const hair = new THREE.MeshLambertMaterial({ color: palette.hair, flatShading: true });
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.55, 0.28), shirt);
-    torso.position.y = 1.18;
-    g.add(torso);
-    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.62, 0.24), pants);
-    legs.position.y = 0.62;
-    g.add(legs);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.26), skin);
-    head.position.y = 1.62;
-    g.add(head);
-    const hairM = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.28), hair);
-    hairM.position.y = 1.78;
-    g.add(hairM);
+    const boot = new THREE.MeshLambertMaterial({ color: 0x211914, flatShading: true });
+    const face = new THREE.MeshBasicMaterial({ color: 0x2a1b18 });
+    const hips = new THREE.Group();
+    hips.position.y = 0.84;
+    g.add(hips);
+
+    // This mirrors the player's jointed walker proportions: hips, torso,
+    // shoulder/elbow arms, knee legs, feet and a full head.
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.84, 0.34), shirt);
+    torso.position.y = 0.4;
+    hips.add(torso);
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.075, 0.37), pants);
+    belt.position.y = 0.04;
+    hips.add(belt);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.245, 8, 8), skin);
+    head.position.y = 1.05;
+    hips.add(head);
+    [-0.075, 0.075].forEach(x => {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026, 6, 6), face);
+      eye.position.set(x, 1.09, 0.225);
+      hips.add(eye);
+    });
+    const hairM = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.13, 0.4), hair);
+    hairM.position.y = 1.24;
+    hips.add(hairM);
+
+    const makeLeg = x => {
+      const hip = new THREE.Group();
+      // Anchor at the waist (not ground level), matching the player's walker
+      // rig. The upper/lower legs then extend down to the feet above terrain.
+      hip.position.set(x, 0.84, 0);
+      g.add(hip);
+      const upper = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.43, 0.2), pants);
+      upper.position.y = -0.215;
+      hip.add(upper);
+      const knee = new THREE.Group();
+      knee.position.y = -0.43;
+      hip.add(knee);
+      const lower = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 0.17), pants);
+      lower.position.y = -0.175;
+      knee.add(lower);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.09, 0.28), boot);
+      foot.position.set(0, -0.395, 0.045);
+      knee.add(foot);
+      return { hip, knee };
+    };
+    const makeArm = x => {
+      const shoulder = new THREE.Group();
+      shoulder.position.set(x, 0.7, 0);
+      hips.add(shoulder);
+      const upper = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.31, 0.15), shirt);
+      upper.position.y = -0.155;
+      shoulder.add(upper);
+      const elbow = new THREE.Group();
+      elbow.position.y = -0.31;
+      shoulder.add(elbow);
+      const lower = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.27, 0.125), shirt);
+      lower.position.y = -0.135;
+      elbow.add(lower);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 7, 7), skin);
+      hand.position.y = -0.315;
+      elbow.add(hand);
+      return { shoulder, elbow };
+    };
+    const legs = [makeLeg(-0.15), makeLeg(0.15)];
+    const arms = [makeArm(-0.33), makeArm(0.33)];
+    const shadow = new THREE.Mesh(
+      new THREE.CircleGeometry(0.42, 12),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2, depthWrite: false })
+    );
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.012;
+    g.add(shadow);
     g.scale.setScalar(scale);
-    g.userData.head = head;
+    g.userData = { head, hips, arms, legs, shadow };
     return g;
   }
 
   function addNpc(cfg) {
-    const mesh = makePerson(cfg.palette, cfg.scale || 1);
+    // Player walker height is about 2.3 world units; keep every NPC there too.
+    const mesh = makePerson(cfg.palette, cfg.scale ?? 1.08);
     const y = placeY(cfg.x, cfg.z);
     mesh.position.set(cfg.x, y, cfg.z);
     mesh.rotation.y = cfg.yaw || 0;
@@ -103,6 +198,11 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       home: { x: cfg.x, z: cfg.z },
       heading: cfg.yaw || 0,
       wanderT: 1 + Math.random() * 4,
+      state: 'idle',
+      pace: cfg.pace || 1.35,
+      homeR: cfg.homeR || 5.5,
+      greetT: 0,
+      greeted: false,
       talkIndex: 0,
       given: false
     };
@@ -114,12 +214,15 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
   const V = { x: -148, z: 48 };
   addPoi('Emberford', V.x, V.z, 28,
     'Lanterns hang from eaves. Mira keeps the last warm inn on the trail.');
-  hut(V.x - 6, V.z + 4, 5.2, 4.4, 3.1, 0.2);
-  hut(V.x + 8, V.z - 2, 4.4, 4.0, 2.8, -0.4);
-  hut(V.x + 2, V.z + 12, 4.8, 3.8, 2.7, 0.9);
-  hut(V.x - 12, V.z - 8, 3.8, 3.6, 2.5, 0.1);
+  hut(V.x - 6, V.z + 4, 7.2, 6.0, 4.3, 0.2);
+  hut(V.x + 8, V.z - 2, 6.5, 5.6, 4.0, -0.4);
+  hut(V.x + 2, V.z + 12, 6.8, 5.5, 4.1, 0.9);
+  hut(V.x - 12, V.z - 8, 5.8, 5.1, 3.7, 0.1);
   stall(V.x + 1, V.z + 1, 0.4);
   stall(V.x - 3, V.z - 6, -0.8);
+  lantern(V.x - 10, V.z + 8);
+  lantern(V.x + 10, V.z + 7);
+  crateStack(V.x - 5, V.z - 4, 0.35);
 
   const well = new THREE.Group();
   well.position.set(V.x - 1, placeY(V.x - 1, V.z + 2), V.z + 2);
@@ -142,6 +245,11 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       'I keep Emberford\'s inn, but the signal fire on the ridge has been dead for seasons.',
       'Take this letter to the hermit by Hidden Falls. He still remembers the old route.',
       'When the beacon burns again, bring me an ember. We will light the village hearth together.'
+    ],
+    laterLines: [
+      'You came back with fire in your stories. The inn can breathe.',
+      'Hang Ash\'s lantern by the door. Let Emberford be a sentence the night can read.',
+      'The trail is yours now. Ride it until the seasons forget how to end.'
     ]
   });
 
@@ -149,8 +257,9 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     id: 'pip',
     name: 'Pip',
     title: 'Runner',
-    x: V.x + 6, z: V.z + 8, yaw: -1.2, scale: 0.78,
+    x: V.x + 6, z: V.z + 8, yaw: -1.2, pace: 2.4, homeR: 9,
     palette: { skin: 0xf0d0b0, shirt: 0x3d6b8a, pants: 0x4a3a28, hair: 0x6b3a18 },
+    gift: { feather: 2 }, giftMessage: 'Pip slips two bright feathers from a runner\'s pouch.',
     lines: [
       'You\'re the rider! Mira said someone would come.',
       'If you see nightberries near the hermit\'s camp, bring me one? I trade stories.',
@@ -164,10 +273,25 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Miller',
     x: V.x - 8, z: V.z - 2, yaw: 1.1,
     palette: { skin: 0xd4b08c, shirt: 0xc4b48a, pants: 0x3a342c, hair: 0xb8b0a4 },
+    gift: { branch: 4 }, giftMessage: 'Hal shares straight ash branches, good for arrow shafts.',
     lines: [
       'The old mill on the hill still has locked sails. A good shot wakes them.',
       'Grain, wind, and patience. Same as a long ride.',
       'If you hunt, leave a little meat for the inn. Mira feeds whoever still walks the trail.'
+    ]
+  });
+
+  addNpc({
+    id: 'bram',
+    name: 'Bram',
+    title: 'Bard',
+    x: -70, z: 28, yaw: 0.4, pace: 1.6, homeR: 18,
+    palette: { skin: 0xe0b898, shirt: 0x6b2d5c, pants: 0x241820, hair: 0x4a2010 },
+    gift: { herb: 2 }, giftMessage: 'Bram gives you a bundle of sweettrail herbs for the road.',
+    lines: [
+      'A rider, a letter, a dead beacon — I have that song half-written.',
+      'West is Emberford. South, salt water. North, stones that watch the sky.',
+      'If you name a constellation, come back. I will put it in the chorus.'
     ]
   });
 
@@ -192,6 +316,8 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
   sailM.position.set(D.x + 10.6, placeY(D.x, D.z) + 2.0, D.z + 8);
   scene.add(sailM);
   if (collision) collision.addCollider(D.x, D.z, 2.4);
+  lantern(D.x - 5, D.z - 2, 0x85c9e8);
+  crateStack(D.x - 5, D.z + 2, -0.2);
 
   addNpc({
     id: 'kael',
@@ -199,6 +325,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Fisher',
     x: D.x - 2, z: D.z - 1.5, yaw: 2.4,
     palette: { skin: 0xc9a07a, shirt: 0x2f5d6e, pants: 0x243038, hair: 0x1c1814 },
+    gift: { arrow: 3 }, giftMessage: 'Kael shares three fishing arrows for a promise to respect the water.',
     lines: [
       'The millpond inland is kinder than this marsh. Cast a line. Wait.',
       'A trout for Sister Wren and she\'ll bless your road. She\'s at the Quiet Abbey, southwest.',
@@ -217,6 +344,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
   spire.position.set(A.x, placeY(A.x, A.z) + 6.4, A.z);
   scene.add(spire);
   if (collision) collision.addCollider(A.x, A.z, 3.4);
+  lantern(A.x - 5, A.z + 2, 0xffd28a);
 
   addNpc({
     id: 'wren',
@@ -224,6 +352,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Abbess',
     x: A.x + 4.2, z: A.z + 3, yaw: -0.6,
     palette: { skin: 0xead4c0, shirt: 0xe8e0d4, pants: 0xe8e0d4, hair: 0xcfc8bc },
+    gift: { herb: 3 }, giftMessage: 'Sister Wren blesses your pack with three healing herbs.',
     lines: [
       'Peace, rider. Hunger makes a hard trail of even kind people.',
       'Bring a fish from the millpond or the docks. We share what we have.',
@@ -239,7 +368,10 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     const ang = (i / 5) * Math.PI * 2;
     stall(M.x + Math.cos(ang) * 8, M.z + Math.sin(ang) * 8, ang + Math.PI);
   }
-  hut(M.x + 12, M.z - 4, 4.2, 3.6, 2.6, 0.3);
+  hut(M.x + 12, M.z - 4, 6.5, 5.4, 3.9, 0.3);
+  lantern(M.x - 9, M.z, 0xffa35b);
+  lantern(M.x + 7, M.z + 7, 0xffbd67);
+  crateStack(M.x + 10, M.z + 3, 0.7);
 
   addNpc({
     id: 'nara',
@@ -247,6 +379,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Lantern-seller',
     x: M.x, z: M.z + 2, yaw: 3.0,
     palette: { skin: 0xc89068, shirt: 0xd9782a, pants: 0x3a2a22, hair: 0x1a1210 },
+    gift: { feather: 3 }, giftMessage: 'Nara hands over three wick-feathers for your next quiver.',
     lines: [
       'A lantern for the Ashen Ruins, east of here. The scholar Ash lost theirs in the collapse.',
       'Markets remember every rider who paid in stories instead of coin.',
@@ -301,6 +434,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Stargazer',
     x: S.x, z: S.z + 1, yaw: 0,
     palette: { skin: 0xe6d2bc, shirt: 0x2a3350, pants: 0x1c1c28, hair: 0xeeeeee },
+    gift: { arrow: 3 }, giftMessage: 'Ivo gives you three star-fletched practice arrows.',
     lines: [
       'Look up on a clear night. The Wanderer, Ember\'s Bow, the Quiet Doe, Riverline.',
       'Hold L when a path of stars sits in your sight. Naming them keeps the dark honest.',
@@ -323,6 +457,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Tracker',
     x: C.x + 6, z: C.z + 3, yaw: -0.4,
     palette: { skin: 0xb89474, shirt: 0x4a3c32, pants: 0x2a241e, hair: 0x2a2018 },
+    gift: { arrow: 4 }, giftMessage: 'Fen marks four broadhead arrows for the trail ahead.',
     lines: [
       'Wolves own this hollow. Give them room, or give them an arrow. Your choice.',
       'Boar root the eastern meadow. Bear sometimes crosses the far pines.',
@@ -340,6 +475,19 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     rock.position.set(G.x + Math.cos(ang) * 5, placeY(G.x, G.z) + 0.4, G.z + Math.sin(ang) * 5);
     scene.add(rock);
   }
+
+  const sites = [
+    { id: 'well', x: V.x - 1, z: V.z + 2, r: 2.4, label: 'Drink from the well (E)',
+      flavor: 'The well water tastes of iron and old snow. Emberford still drinks.' },
+    { id: 'cave', x: C.x, z: C.z, r: 3.6, label: 'Enter Wolfhollow (E)',
+      flavor: 'The cave breathes cold. Wolf prints braid the packed earth and vanish into dark.' },
+    { id: 'ferry', x: D.x + 10, z: D.z + 8, r: 3.2, label: 'Sit in the skiff (E)',
+      flavor: 'The skiff rocks. Marsh birds lift. For a moment the trail is only water.' },
+    { id: 'bell', x: A.x, z: A.z + 2.8, r: 3.0, label: 'Ring the abbey bell (E)',
+      flavor: 'One low note rolls across the west valley. Sister Wren does not flinch.' },
+    { id: 'scope', x: S.x, z: S.z, r: 3.2, label: 'Study the stones (E)',
+      flavor: 'Ivo\'s chalk marks name the Wanderer. At night, look up and press L.' }
+  ];
 
   // ---------- dialogue UI ----------
   const panel = document.createElement('div');
@@ -370,22 +518,30 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
 
   let talking = null;
   let nearest = null;
+  let nearestSite = null;
+  let questsRef = null;
+
+  function chapter() {
+    return questsRef && typeof questsRef.chapter === 'number' ? questsRef.chapter : 0;
+  }
 
   function grantStoryItems(npc) {
-    if (npc.given) return;
-    if (npc.id === 'mira') {
+    if (npc.id === 'mira' && !npc.given && chapter() <= 1) {
       inventory.add('letter', 1);
-      onEvent('talk', { id: 'mira', item: 'letter' });
       npc.given = true;
       return 'Mira presses a sealed letter into your hands.';
     }
-    if (npc.id === 'ash') {
+    if (npc.id === 'ash' && !npc.given) {
       inventory.add('lantern', 1);
-      onEvent('talk', { id: 'ash', item: 'lantern' });
       npc.given = true;
+      onEvent('lantern', { id: 'ash' });
       return 'Ash gives you a battered bronze lantern, still faintly warm.';
     }
-    onEvent('talk', { id: npc.id });
+    if (npc.gift && !npc.giftGiven) {
+      Object.entries(npc.gift).forEach(([item, amount]) => inventory.add(item, amount));
+      npc.giftGiven = true;
+      return npc.giftMessage || `${npc.name} adds useful supplies to your pouch.`;
+    }
     return null;
   }
 
@@ -393,11 +549,12 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     talking = npc;
     panel.style.display = 'block';
     document.getElementById('dlgName').textContent = `${npc.name.toUpperCase()}  ·  ${npc.title}`;
-    const line = npc.lines[Math.min(npc.talkIndex, npc.lines.length - 1)];
+    const pack = (npc.laterLines && chapter() >= 10) ? npc.laterLines : npc.lines;
+    const line = pack[Math.min(npc.talkIndex, pack.length - 1)];
     const extra = grantStoryItems(npc);
     document.getElementById('dlgText').textContent = extra ? `${line}\n\n${extra}` : line;
-    npc.talkIndex = Math.min(npc.talkIndex + 1, npc.lines.length - 1);
-    onEvent('talk', { id: npc.id });
+    if (npc.talkIndex === 0) onEvent('talk', { id: npc.id });
+    npc.talkIndex = Math.min(npc.talkIndex + 1, pack.length - 1);
   }
 
   function closeTalk() {
@@ -407,42 +564,119 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
 
   function tryInteract(player) {
     if (talking) {
-      if (talking.talkIndex >= talking.lines.length - 1) closeTalk();
+      const pack = (talking.laterLines && chapter() >= 10) ? talking.laterLines : talking.lines;
+      if (talking.talkIndex >= pack.length - 1) closeTalk();
       else showLine(talking);
       return true;
     }
-    if (!nearest) return false;
-    showLine(nearest);
-    return true;
+    if (nearest) {
+      const pack = (nearest.laterLines && chapter() >= 10) ? nearest.laterLines : nearest.lines;
+      if (nearest.talkIndex >= pack.length - 1) nearest.talkIndex = 0;
+      showLine(nearest);
+      return true;
+    }
+    if (nearestSite) {
+      onEvent('discover', { name: nearestSite.id });
+      const toast = document.createElement('div');
+      toast.textContent = nearestSite.flavor;
+      Object.assign(toast.style, {
+        position: 'fixed', left: '50%', top: '40%', transform: 'translateX(-50%)',
+        background: 'rgba(20,16,12,0.82)', color: '#f6ecd8', padding: '12px 20px',
+        borderRadius: '10px', fontSize: '14px', zIndex: 80, maxWidth: '70vw', textAlign: 'center'
+      });
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3200);
+      return true;
+    }
+    return false;
   }
 
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && talking) closeTalk();
   });
 
-  function update(dt, elapsed, playerPos, keys) {
+  function update(dt, elapsed, playerPos, playerSpeed = 0) {
     nearest = null;
+    nearestSite = null;
     let best = 3.6 * 3.6;
+    const gallop = Math.abs(playerSpeed) > 6;
+
     for (const n of npcs) {
       const d2 = distSq(playerPos.x, playerPos.z, n.mesh.position.x, n.mesh.position.z);
-      const far = d2 > 140 * 140;
+      const far = d2 > 90 * 90;
       n.mesh.visible = !far;
       if (far) continue;
-      n.wanderT -= dt;
-      if (n.wanderT <= 0 && !talking) {
-        n.heading += (Math.random() - 0.5) * 1.2;
-        n.wanderT = 2 + Math.random() * 4;
+
+      if (talking === n) {
+        const face = Math.atan2(playerPos.x - n.mesh.position.x, playerPos.z - n.mesh.position.z);
+        n.mesh.rotation.y += (face - n.mesh.rotation.y) * Math.min(1, dt * 4);
+        n.state = 'talk';
+      } else if (n.id === 'pip' && gallop && d2 < 22 * 22) {
+        n.state = 'flee';
+        n.heading = Math.atan2(n.mesh.position.x - playerPos.x, n.mesh.position.z - playerPos.z);
+        n.mesh.position.x += Math.sin(n.heading) * n.pace * 2.2 * dt;
+        n.mesh.position.z += Math.cos(n.heading) * n.pace * 2.2 * dt;
+      } else {
+        n.wanderT -= dt;
+        if (n.wanderT <= 0) {
+          n.state = Math.random() < 0.45 ? 'idle' : 'wander';
+          n.heading += (Math.random() - 0.5) * 1.6;
+          n.wanderT = 2 + Math.random() * 5;
+        }
+        if (n.state === 'wander') {
+          n.mesh.position.x += Math.sin(n.heading) * n.pace * dt;
+          n.mesh.position.z += Math.cos(n.heading) * n.pace * dt;
+          const hx = n.mesh.position.x - n.home.x;
+          const hz = n.mesh.position.z - n.home.z;
+          if (hx * hx + hz * hz > n.homeR * n.homeR) {
+            n.heading = Math.atan2(-hx, -hz);
+          }
+        }
+        n.mesh.rotation.y += (n.heading - n.mesh.rotation.y) * Math.min(1, dt * 2.4);
       }
-      if (!talking) {
-        n.mesh.rotation.y += (n.heading - n.mesh.rotation.y) * Math.min(1, dt * 2);
-        n.mesh.position.y = placeY(n.mesh.position.x, n.mesh.position.z);
-        if (n.mesh.userData.head) {
-          n.mesh.userData.head.rotation.y = Math.sin(elapsed * 1.4 + n.x) * 0.08;
+      n.mesh.position.y = placeY(n.mesh.position.x, n.mesh.position.z);
+      const rig = n.mesh.userData;
+      if (rig.head) rig.head.rotation.y = Math.sin(elapsed * 1.4 + n.home.x) * 0.08;
+      if (rig.hips) {
+        const gait = elapsed * (n.state === 'wander' || n.state === 'flee' ? 7 : 2.2) + n.home.z;
+        const walking = n.state === 'wander' || n.state === 'flee';
+        rig.hips.position.y = 0.84 + (walking ? Math.abs(Math.sin(gait)) * 0.045 : Math.sin(gait) * 0.012);
+        rig.arms.forEach((arm, index) => {
+          arm.shoulder.rotation.x = walking
+            ? Math.sin(gait + (index ? Math.PI : 0)) * 0.48
+            : Math.sin(gait + index) * 0.08;
+          arm.elbow.rotation.x = walking ? 0.12 + Math.max(0, -Math.sin(gait + index * Math.PI)) * 0.18 : 0.08;
+        });
+        rig.legs.forEach((leg, index) => {
+          const swing = Math.sin(gait + (index ? Math.PI : 0));
+          leg.hip.rotation.x = walking ? swing * 0.5 : 0;
+          leg.knee.rotation.x = walking ? Math.max(0, -swing) * 0.36 : 0;
+        });
+        if (rig.shadow) rig.shadow.scale.x = walking ? 0.9 + Math.abs(Math.sin(gait)) * 0.12 : 1;
+      }
+
+      if (d2 < 16 * 16 && !n.greeted) {
+        n.greetT += dt;
+        if (n.greetT > 0.35) {
+          n.greeted = true;
+          onEvent('discover', { name: n.name });
         }
       }
+
       if (d2 < best) {
         best = d2;
         nearest = n;
+      }
+    }
+
+    if (!nearest) {
+      let siteBest = 3.2 * 3.2;
+      for (const s of sites) {
+        const d2 = distSq(playerPos.x, playerPos.z, s.x, s.z);
+        if (d2 < siteBest) {
+          siteBest = d2;
+          nearestSite = s;
+        }
       }
     }
 
@@ -451,7 +685,12 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       return;
     }
     if (nearest) {
-      prompt.textContent = `Talk to ${nearest.name} (E)`;
+      prompt.textContent = nearest.gift && !nearest.giftGiven
+        ? `Talk to ${nearest.name} (E) — supplies available`
+        : `Talk to ${nearest.name} (E)`;
+      prompt.style.opacity = '1';
+    } else if (nearestSite) {
+      prompt.textContent = nearestSite.label;
       prompt.style.opacity = '1';
     } else {
       prompt.style.opacity = '0';
@@ -463,6 +702,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     npcs,
     update,
     tryInteract,
+    setQuests(q) { questsRef = q; },
     get isTalking() { return !!talking; },
     closeTalk
   };

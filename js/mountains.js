@@ -154,14 +154,16 @@ export function createMountains(scene) {
 
   // ---------- climate update helper ----------
   // Called every frame from climate.js
+  const _near = new THREE.Color();
+  const _mid = new THREE.Color();
+  const _far = new THREE.Color();
   function updateMountainClimate(palette, snowAmount) {
-    // near mountains – lerp toward season rock color + snow
-    const targetNear = new THREE.Color(palette.near);
-    nearMat.color.lerp(targetNear, 0.04);
-
-    // mid & far
-    midMat.color.lerp(new THREE.Color(palette.mid), 0.04);
-    farMat.color.lerp(new THREE.Color(palette.far), 0.04);
+    _near.set(palette.near);
+    _mid.set(palette.mid);
+    _far.set(palette.far);
+    nearMat.color.lerp(_near, 0.04);
+    midMat.color.lerp(_mid, 0.04);
+    farMat.color.lerp(_far, 0.04);
     farMat.opacity = 0.45 + snowAmount * 0.15;
   }
 

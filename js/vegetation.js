@@ -440,78 +440,13 @@ export function createVegetation(scene, terrainHeight, collision) {
   }
   scene.add(cloudGroup);
 
-  // ---------------------------------------------------------------
-  // falling particles (unchanged)
-  // ---------------------------------------------------------------
-  function makeFallSystem(count, color, size, opacity, palette) {
-    const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(count * 3);
-    const seed = new Float32Array(count);
-    const spread = 130;
-    for (let i = 0; i < count; i++) {
-      pos[i * 3]     = (Math.random() - 0.5) * spread;
-      pos[i * 3 + 1] = Math.random() * 65;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * spread;
-      seed[i] = Math.random() * Math.PI * 2;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-
-    let mat;
-    if (palette) {
-      const col = new Float32Array(count * 3);
-      const tmp = new THREE.Color();
-      for (let i = 0; i < count; i++) {
-        tmp.set(palette[Math.floor(Math.random() * palette.length)]);
-        col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
-      }
-      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      mat = new THREE.PointsMaterial({
-        size, transparent: true, opacity, depthWrite: false, vertexColors: true
-      });
-    } else {
-      mat = new THREE.PointsMaterial({
-        color, size, transparent: true, opacity, depthWrite: false
-      });
-    }
-    const pts = new THREE.Points(geo, mat);
-    scene.add(pts);
-    return { geo, pos, seed, mat, count, spread, points: pts };
-  }
-
-  const snowSys  = makeFallSystem(mobile ? 280 : 500, 0xffffff, 0.22, 0.85);
-  const petalSys = makeFallSystem(mobile ? 120 : 220, 0xffb7c5, 0.34, 0.0, sakuraPalette);
-  const leafSys  = makeFallSystem(mobile ? 90 : 160, 0xd97a3a, 0.3, 0.0);
-  let fallFrame = 0;
-
-  function updateFallSystem(sys, dt, t, fallSpeed, sway, windX, playerPos) {
-    // Seasonal systems with zero opacity still cost a full CPU pass otherwise.
-    if (sys.mat.opacity <= 0.01) return;
-    const pos = sys.pos;
-    const seed = sys.seed;
-    for (let i = 0; i < sys.count; i++) {
-      const iy = i * 3 + 1;
-      const ix = i * 3;
-      let y = pos[iy] - dt * fallSpeed;
-      let x = pos[ix] + (Math.sin(t * 0.6 + seed[i]) * sway + windX) * dt;
-      if (y < -2) {
-        y = 58 + Math.random() * 6;
-        x = (Math.random() - 0.5) * sys.spread;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * sys.spread;
-      }
-      pos[iy] = y;
-      pos[ix] = x;
-    }
-    sys.geo.attributes.position.needsUpdate = true;
-    sys.points.position.x = playerPos.x;
-    sys.points.position.z = playerPos.z;
-  }
-
-  function updateFallSystems(dt, t, windX, playerPos) {
-    if (++fallFrame & 1) return;
-    updateFallSystem(snowSys,  dt, t, 5.5, 0.5, windX * 0.3, playerPos);
-    updateFallSystem(petalSys, dt, t, 1.6, 1.6, windX, playerPos);
-    updateFallSystem(leafSys,  dt, t, 2.6, 1.1, windX * 0.8, playerPos);
-  }
+  // Climate still writes seasonal opacity values, so keep lightweight shims
+  // rather than allocating invisible Points geometries every season.
+  const disabledFallSystem = () => ({ mat: { opacity: 0 } });
+  const snowSys = disabledFallSystem();
+  const petalSys = disabledFallSystem();
+  const leafSys = disabledFallSystem();
+  function updateFallSystems() {}
 
   return {
     treeLeafMat,

@@ -94,6 +94,10 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
       const fl = document.getElementById('flavorText');
       if (found) {
         discovered.add(found.name);
+        if (!firedEvents.has('poi:' + found.name)) {
+          firedEvents.add('poi:' + found.name);
+          onDiscoverEvent('poi:' + found.name);
+        }
         if (found.onDiscover && !firedEvents.has(found.onDiscover)) {
           firedEvents.add(found.onDiscover);
           onDiscoverEvent(found.onDiscover);

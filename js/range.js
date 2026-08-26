@@ -1,10 +1,9 @@
-// range.js — an archery practice range near camp: three scoring targets with
-// bullseye rings, floating score popups and a 60s time-trial when you hit the
-// gong. Registers its targets with the archery system.
+// range.js — a dedicated archery practice ground with varied challenge shots,
+// unlimited practice arrows, scoring targets and a 60s gong time-trial.
 export function createRange({
-  scene, terrainHeight, archery, onEvent = () => {},
-  origin = { x: 95, z: -72 },
-  targetDirection = { x: -0.66, z: 0.75 }
+  scene, terrainHeight, archery, inventory, onEvent = () => {},
+  origin = { x: 250, z: 260 },
+  targetDirection = { x: -1, z: 0 }
 }) {
   const group = new THREE.Group();
   const baseY = terrainHeight(origin.x, origin.z);
@@ -25,23 +24,17 @@ export function createRange({
   const targets = [];
   const movingTargets = [];
 
-  // Organized layout with clear distance lanes
-  // Lane 1: Close range (left), Lane 2: Medium range (center), Lane 3: Long range (right)
+  // Three lanes mix close, low, elevated, moving, and distant small targets.
   const layout = [
-    // Close range lane (left) - 20m, 25m, 30m
-    { distance: 20, lateral: -8, scale: 1.2, moving: false, lane: 'close' },
-    { distance: 25, lateral: -8, scale: 1.15, moving: true, lane: 'close' },
-    { distance: 30, lateral: -8, scale: 1.1, moving: false, lane: 'close' },
-    
-    // Medium range lane (center) - 40m, 45m, 50m  
-    { distance: 40, lateral: 0, scale: 1.0, moving: false, lane: 'medium' },
-    { distance: 45, lateral: 0, scale: 0.95, moving: true, lane: 'medium' },
-    { distance: 50, lateral: 0, scale: 0.9, moving: false, lane: 'medium' },
-    
-    // Long range lane (right) - 60m, 70m, 80m
-    { distance: 60, lateral: 8, scale: 0.85, moving: false, lane: 'long' },
-    { distance: 70, lateral: 8, scale: 0.8, moving: true, lane: 'long' },
-    { distance: 80, lateral: 8, scale: 0.75, moving: false, lane: 'long' }
+    { distance: 18, lateral: -9, scale: 1.2, moving: false, elevation: 0, label: 'close' },
+    { distance: 27, lateral: -9, scale: 1.05, moving: true, elevation: 0, label: 'runner' },
+    { distance: 36, lateral: -9, scale: 0.82, moving: false, elevation: -0.72, label: 'low' },
+    { distance: 42, lateral: 0, scale: 1.0, moving: false, elevation: 0, label: 'medium' },
+    { distance: 52, lateral: 0, scale: 0.84, moving: true, elevation: 0.85, label: 'riser' },
+    { distance: 61, lateral: 0, scale: 0.72, moving: false, elevation: 1.45, label: 'tower' },
+    { distance: 66, lateral: 9, scale: 0.76, moving: false, elevation: 0, label: 'long' },
+    { distance: 76, lateral: 9, scale: 0.62, moving: true, elevation: 0.3, label: 'swift' },
+    { distance: 88, lateral: 9, scale: 0.5, moving: false, elevation: 1.15, label: 'far' }
   ];
   function lanePoint(distance, lateral = 0) {
     return {
@@ -103,7 +96,7 @@ export function createRange({
     }
   });
 
-  layout.forEach(({ distance, lateral, scale, moving, lane }, i) => {
+  layout.forEach(({ distance, lateral, scale, moving, elevation, label }, i) => {
     const point = lanePoint(distance, lateral);
     const t = new THREE.Group();
     const baseYTarget = terrainHeight(point.x, point.z) - baseY;
@@ -120,7 +113,7 @@ export function createRange({
     });
 
     const face = new THREE.Group();
-    face.position.y = 1.9;
+    face.position.y = 1.9 + elevation;
     t.add(face);
     
     // Standard target rings
@@ -146,12 +139,11 @@ export function createRange({
       t.add(slideRail);
       
       movingData = {
-        baseY: baseYTarget,
-        offset: 0,
+        baseLocal: t.position.clone(),
         speed: 0.8 + Math.random() * 0.4,
-        range: 2.5,
+        range: 2.8,
         phase: Math.random() * Math.PI * 2,
-        direction: Math.random() > 0.5 ? 1 : -1
+        elevation
       };
       movingTargets.push({ target: t, data: movingData, face });
     }
@@ -161,19 +153,23 @@ export function createRange({
 
     archery.register({
       name: `range-target-${i}`,
-      radius: 1.05 * Math.max(scale, 0.95 + distance * 0.006),
+      radius: 1.08 * scale,
       getPos: worldPos,
       onHit: (power, at) => {
-        const p = worldPos();
-        const off = at.distanceTo(p);
-        const baseScore = off < 0.2 ? 100 : off < 0.45 ? 50 : off < 0.75 ? 25 : 10;
+        // Convert the arrow impact into the face's local X/Y plane. This
+        // makes the gold centre reliably count as a bullseye at every range.
+        const localHit = face.worldToLocal(at.clone());
+        const off = Math.hypot(localHit.x, localHit.y);
+        const bullseye = off <= 0.17;
+        const baseScore = bullseye ? 100 : off < 0.42 ? 50 : off < 0.72 ? 25 : 10;
         const distanceBonus = Math.floor(distance / 10); // Bonus points for longer distance
         const movingBonus = moving ? 15 : 0; // Bonus for hitting moving targets
+        const elevationBonus = elevation > 0.5 ? 10 : 0;
         const totalScore = baseScore + distanceBonus + movingBonus;
-        popup(at, totalScore, off < 0.2, moving);
+        popup(at, totalScore + elevationBonus, bullseye, moving);
         wobble(t);
-        addScore(totalScore, off < 0.2);
-        onEvent(off < 0.2 ? 'bullseye' : 'target', { score: totalScore });
+        addScore(totalScore + elevationBonus, bullseye);
+        onEvent(bullseye ? 'bullseye' : 'target', { score: totalScore + elevationBonus, label });
       }
     });
 
@@ -239,6 +235,12 @@ export function createRange({
     best = Math.max(best, score);
   }
 
+  const poiList = [{
+    name: 'Farshot Practice Range', pos: { x: origin.x, z: origin.z }, r: 26,
+    flavor: 'A dedicated range for close, moving, elevated, and long-distance shots. Practice arrows are unlimited here.'
+  }];
+  const PRACTICE_RADIUS = 20;
+  const PRACTICE_ARROW_COUNT = 60;
   let isVisible = false;
   const RENDER_DISTANCE = 120;
 
@@ -254,6 +256,10 @@ export function createRange({
 
   function update(dt, camera, playerPos) {
     setVisibility(playerPos);
+    const inPracticeArea = Math.hypot(playerPos.x - origin.x, playerPos.z - origin.z) < PRACTICE_RADIUS;
+    if (inPracticeArea && inventory && inventory.count('arrow') < PRACTICE_ARROW_COUNT) {
+      inventory.add('arrow', PRACTICE_ARROW_COUNT - inventory.count('arrow'));
+    }
     
     // Always update HUD and trial state, even when not visible
     if (trialActive) {
@@ -266,10 +272,10 @@ export function createRange({
     } else if (hudTimer <= 0) score = 0;
 
     hudTimer -= dt;
-    hud.style.opacity = hudTimer > 0 ? '1' : '0';
+    hud.style.opacity = (hudTimer > 0 || inPracticeArea) ? '1' : '0';
     hud.innerHTML = trialActive
       ? `<b>TIME TRIAL</b> · ${trial.toFixed(1)}s &nbsp;·&nbsp; ${score} pts <div style="font-size:9px;opacity:.55">bullseyes score double · moving targets +15</div>`
-      : `RANGE SCORE ${score}&nbsp;·&nbsp;BEST ${best}<div style="font-size:9px;opacity:.55">Lanes: Close(20-30m) Medium(40-50m) Long(60-80m) · shoot gong for trial</div>`;
+      : `RANGE SCORE ${score}&nbsp;·&nbsp;BEST ${best}<div style="font-size:9px;opacity:.55">PRACTICE ARROWS ∞ · close, low, moving, elevated & long shots · shoot gong for trial</div>`;
 
     // Skip 3D updates if not visible
     if (!isVisible) return;
@@ -278,10 +284,13 @@ export function createRange({
     movingTargets.forEach(({ target, data, face }) => {
       data.phase += dt * data.speed;
       const movement = Math.sin(data.phase) * data.range;
-      target.position.x = movement;
-      
-      // Add slight vertical bob for extra challenge
-      face.position.y = 1.9 + Math.sin(data.phase * 2) * 0.15;
+      const localX = data.baseLocal.x + laneRight.x * movement;
+      const localZ = data.baseLocal.z + laneRight.z * movement;
+      target.position.x = localX;
+      target.position.z = localZ;
+      target.position.y = terrainHeight(origin.x + localX, origin.z + localZ) - baseY;
+      face.position.y = 1.9 + data.elevation + Math.sin(data.phase * 2) * 0.15;
+      faceTowardShooter(target, origin.x + localX, origin.z + localZ);
     });
 
     for (let i = wobbles.length - 1; i >= 0; i--) {
@@ -302,5 +311,5 @@ export function createRange({
     }
   }
 
-  return { update, position: origin, get score() { return score; }, get best() { return best; } };
+  return { update, position: origin, poiList, get score() { return score; }, get best() { return best; } };
 }

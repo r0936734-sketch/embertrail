@@ -44,7 +44,7 @@ export function createHunting({ scene, terrainHeight, archery, inventory, onEven
   const ZONES = [
     { x: 48, z: 28, r: 26 },   { x: -55, z: -30, r: 28 },
     { x: -34, z: 24, r: 22 },  { x: 70, z: -40, r: 26 },
-    { x: -80, z: -55, r: 24 } // wolf/bear territory
+    { x: -176, z: -128, r: 26 }
   ];
 
   const animals = [];

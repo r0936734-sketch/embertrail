@@ -1,7 +1,7 @@
 // inventory.js — arrows, loot, crafting and a small pouch HUD.
 // Press  I  to toggle the pouch,  X  to craft 3 arrows from 2 branches.
 export function createInventory(startArrows = 18) {
-  const items = { arrow: startArrows, branch: 6, hide: 0, meat: 0, feather: 4, herb: 0 };
+  const items = { arrow: startArrows, branch: 6, hide: 0, meat: 0, feather: 4, herb: 0, letter: 0, lantern: 0 };
   const listeners = [];
   const isMobile = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
@@ -28,7 +28,7 @@ export function createInventory(startArrows = 18) {
 
   let open = !isMobile;
 
-  const ICON = { arrow: '🏹 Arrows', branch: '🪵 Branches', hide: '🟫 Hides', meat: '🍖 Meat', feather: '🪶 Feathers', herb: '🌿 Herbs' };
+  const ICON = { arrow: '🏹 Arrows', branch: '🪵 Branches', hide: '🟫 Hides', meat: '🍖 Meat', feather: '🪶 Feathers', herb: '🌿 Herbs', letter: '✉ Letter', lantern: '🏮 Lantern' };
 
   function render() {
     panel.style.opacity        = open ? '1' : '0';
