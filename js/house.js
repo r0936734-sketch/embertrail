@@ -544,6 +544,8 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
     const flicker = 0.9 + Math.sin(elapsed * 8) * 0.08 + Math.sin(elapsed * 17 + 1) * 0.05;
     hearthFlame.scale.set(flicker, flicker * 1.08, flicker);
     hearthLight.intensity = 1.4 + Math.sin(elapsed * 8) * 0.15;
+    // Interior particle buffers only need updating while the cabin is nearby.
+    if (inside || inRange) {
     boilingBubbles.forEach((bubble, index) => {
       const rise = (Math.sin(elapsed * 4.5 + bubble.userData.phase) + 1) * 0.5;
       bubble.position.y = 2.405 + rise * 0.14;
@@ -580,6 +582,7 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
       tip.scale.setScalar(0.8 + incenseGlow * 0.25);
     });
     incenseLight.intensity = 0.26 + incenseGlow * 0.14;
+    }
 
     if (!inside) {
       promptEl.textContent = player.mounted

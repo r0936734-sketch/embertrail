@@ -1,3 +1,6 @@
+import { RANGE_ORIGIN, rangeCorridorT } from './range.js';
+import { MANDIR_ORIGIN, mandirFootprintT } from './mandir.js';
+
 export function createTerrain(scene) {
 
   // ---------- multi-octave, domain-warped pseudo noise ----------
@@ -75,6 +78,18 @@ export function createTerrain(scene) {
     const vt = 1 - Math.min(1, Math.max(0, vd / (vistaRadius * 1.7)));
     const smooth = vt * vt * (3 - 2 * vt);
     h = h + (vistaHeight - h) * smooth;
+
+    // Flatten Farshot so arrows fly a true 90m lane instead of burying in a hill.
+    const rt = rangeCorridorT(x, z);
+    if (rt > 0) {
+      const pad = rt * rt * (3 - 2 * rt);
+      h = h + (2.2 - h) * pad;
+    }
+    const mt = mandirFootprintT(x, z);
+    if (mt > 0) {
+      const pad = mt * mt * (3 - 2 * mt);
+      h = h + (2.05 - h) * pad;
+    }
     return h;
   }
 
@@ -121,7 +136,8 @@ export function createTerrain(scene) {
     { x: 0, z: 0 }, { x: -34, z: 24 }, { x: 19, z: 11 }, { x: 46, z: -22 },
     { x: 60, z: -36 }, { x: 48, z: 28 }, { x: 52, z: 36 }, { x: -62, z: -48 }, { x: -80, z: -55 },
     { x: -148, z: 48 }, { x: 38, z: 178 }, { x: -188, z: 132 }, { x: 168, z: 148 },
-    { x: 214, z: -52 }, { x: 52, z: -188 }, { x: -176, z: -128 }
+    { x: 214, z: -52 }, { x: 52, z: -188 }, { x: -176, z: -128 },
+    RANGE_ORIGIN, MANDIR_ORIGIN
   ];
   const pathSegments = [
     [pathHubs[0], pathHubs[1]], [pathHubs[0], pathHubs[2]], [pathHubs[2], pathHubs[3]],
@@ -131,6 +147,8 @@ export function createTerrain(scene) {
     [pathHubs[0], pathHubs[10]], [pathHubs[5], pathHubs[12]],
     [pathHubs[3], pathHubs[13]], [pathHubs[4], pathHubs[14]],
     [pathHubs[8], pathHubs[15]],
+    [pathHubs[12], pathHubs[16]],
+    [pathHubs[13], pathHubs[17]],
     [pathHubs[2], { x: 178, z: 14 }],
     [pathHubs[3], { x: 156, z: -112 }]
   ];
@@ -171,6 +189,10 @@ export function createTerrain(scene) {
     if (meadowT > 0) _mix.lerp(cMeadow, meadowT * 0.38);
     const farDryT = 1 - THREE.MathUtils.smoothstep(Math.hypot(x + 132, z + 138), 42, 128);
     if (farDryT > 0) _mix.lerp(cFarDry, farDryT * 0.3);
+    const rangeT = rangeCorridorT(x, z);
+    if (rangeT > 0) _mix.lerp(cPath, rangeT * 0.72);
+    const mandirT = mandirFootprintT(x, z);
+    if (mandirT > 0) _mix.lerp(cPath, mandirT * 0.55);
 
     // expose rock on steep slopes
     const slope = terrainSlope(x, z);

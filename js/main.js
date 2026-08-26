@@ -28,7 +28,8 @@ import { createBinoculars } from './binoculars.js';
 import { createInventory } from './inventory.js';
 import { createArchery } from './archery.js';
 import { createHunting } from './hunting.js';
-import { createRange } from './range.js';
+import { createRange, RANGE_ORIGIN } from './range.js';
+import { createMandir, MANDIR_ORIGIN } from './mandir.js';
 import { createForage } from './forage.js';
 import { createQuests } from './quests.js';
 import { createWorld } from './world.js';
@@ -155,7 +156,8 @@ import { createWorld } from './world.js';
     { name: 'Ashen Ruins', x: 214, z: -52 },
     { name: 'Skywatch Observatory', x: 52, z: -188 },
     { name: 'Wolfhollow', x: -176, z: -128 },
-    { name: 'Farshot Practice Range', x: 250, z: 260 }
+    { name: 'Farshot Practice Range', x: RANGE_ORIGIN.x, z: RANGE_ORIGIN.z },
+    { name: 'Shree Baba Prasannadas Ji Mandir', x: MANDIR_ORIGIN.x, z: MANDIR_ORIGIN.z }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -163,9 +165,13 @@ import { createWorld } from './world.js';
   // ---------- hunting / activities ----------
   const inventory = createInventory(18);
   const quests = createQuests({ inventory });
+  let ui;
   const world = createWorld(scene, terrain.terrainHeight, collision, {
     inventory,
-    onEvent: (type, data) => quests.handleEvent(type, data)
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'npcGuide' && ui) ui.setWaypointByName(data.target);
+    }
   });
   world.setQuests(quests);
   collectibles.setOnEvent((type, data) => quests.handleEvent(type, data));
@@ -238,17 +244,41 @@ import { createWorld } from './world.js';
     terrainHeight: terrain.terrainHeight,
     archery,
     inventory,
+    collision,
     onEvent: (type, data) => {
       quests.handleEvent(type, data);
       if (type === 'trialEnd') quests.toast(`Time trial over — ${data.score} points`);
     },
-    // Farshot is deliberately away from the cabin and Eastern Meadow.
-    origin: { x: 250, z: 260 },
+    origin: RANGE_ORIGIN,
     targetDirection: { x: -1, z: 0 }
   });
 
+  const mandir = createMandir(scene, terrain.terrainHeight, collision, {
+    position: MANDIR_ORIGIN,
+    rotationY: 0,
+    getAudioCtx: () => audio.audioCtx,
+    onEvent: (type, data) => quests.handleEvent(type, data)
+  });
+
+  // One lightweight world-space beacon represents the selected map waypoint.
+  const waypointPin = new THREE.Group();
+  const waypointBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.1, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffd35e, transparent: true, opacity: 0.8, depthWrite: false })
+  );
+  waypointBeam.position.y = 4;
+  const waypointHead = new THREE.Mesh(
+    new THREE.ConeGeometry(0.42, 0.9, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffe7a1, transparent: true, opacity: 0.95, depthWrite: false })
+  );
+  waypointHead.position.y = 8.45;
+  waypointPin.add(waypointBeam, waypointHead);
+  waypointPin.visible = false;
+  scene.add(waypointPin);
+  let waypointTarget = null;
+
   // Create UI after all POIs are created
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList], key => {
+  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList], key => {
     if (typeof key === 'string' && key.startsWith('poi:')) {
       quests.discover(key.slice(4));
       return;
@@ -256,7 +286,7 @@ import { createWorld } from './world.js';
     if (key !== 'climbUnlock') return;
     player.unlockClimb();
     const toast = document.createElement('div');
-    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
+    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift to sprint on foot.';
     Object.assign(toast.style, {
       position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
       color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
@@ -269,6 +299,10 @@ import { createWorld } from './world.js';
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 700);
     }, 4500);
+  }, target => {
+    waypointTarget = target;
+    waypointPin.visible = !!target;
+    if (target) waypointPin.position.set(target.x, terrain.terrainHeight(target.x, target.z), target.z);
   });
 
   // Add simple exploration targets at various locations
@@ -371,6 +405,7 @@ import { createWorld } from './world.js';
   const craftBtn = document.getElementById('craftBtn');
   const pouchBtn = document.getElementById('pouchBtn');
   const questsBtn = document.getElementById('questsBtn');
+  const mapBtn = document.getElementById('mapBtn');
   const launchOverlay = document.getElementById('launchOverlay');
   const launchPageCredits = document.getElementById('launchPageCredits');
   const launchPageHowTo = document.getElementById('launchPageHowTo');
@@ -478,6 +513,19 @@ import { createWorld } from './world.js';
     const key = prompt.dataset.mobileKey;
     const promptText = prompt.textContent;
     let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
+    if (key === 'e') {
+      if (/talk/i.test(promptText)) label = 'TALK';
+      else if (/darshan/i.test(promptText)) label = 'DARSHAN';
+      else if (/bell|ring/i.test(promptText)) label = 'RING';
+      else if (/sleep/i.test(promptText)) label = 'SLEEP';
+      else if (/open|enter/i.test(promptText)) label = 'ENTER';
+      else if (/leave|exit/i.test(promptText)) label = 'EXIT';
+      else if (/read/i.test(promptText)) label = 'READ';
+      else if (/light|dim/i.test(promptText)) label = 'LAMP';
+      else if (/drink/i.test(promptText)) label = 'DRINK';
+      else if (/sit/i.test(promptText)) label = 'SIT';
+      else if (/study/i.test(promptText)) label = 'STUDY';
+    }
     if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
     if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
     if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
@@ -619,6 +667,13 @@ import { createWorld } from './world.js';
     craftBtn.addEventListener('pointerdown', e => useActivity('x', e));
     pouchBtn.addEventListener('pointerdown', e => useActivity('i', e));
     questsBtn.addEventListener('pointerdown', e => useActivity('j', e));
+    mapBtn.addEventListener('pointerdown', e => {
+      ui.toggleMap();
+      mobileActivityMenu.classList.remove('is-open');
+      activityToggle.setAttribute('aria-expanded', 'false');
+      startAudio(audio);
+      e.preventDefault();
+    });
     sensitivitySlider.addEventListener('input', e => {
       setLookSensitivity(e.target.value);
     });
@@ -832,6 +887,8 @@ import { createWorld } from './world.js';
           keys['e'] = false;
         } else if (house.tryInteract(player)) {
           keys['e'] = false;
+        } else if (mandir.tryInteract(player)) {
+          keys['e'] = false;
         } else if (world.tryInteract(player)) {
           keys['e'] = false;
         }
@@ -866,6 +923,7 @@ import { createWorld } from './world.js';
     // Use the active player position so the range remains available while
     // dismounted instead of tracking the horse left behind elsewhere.
     range.update(dt, camera, player.position);
+    mandir.update(dt, elapsed, player.position);
     spaceEnemies.update(dt, elapsed);
     landmarks.update(dt, elapsed, isSummer, player.group.position);
     waterfall.update(dt, elapsed, player.group.position);
@@ -892,6 +950,11 @@ import { createWorld } from './world.js';
         em.marker.visible = shouldRender;
         em.glow.visible = shouldRender;
       });
+    }
+
+    if (waypointTarget) {
+      waypointPin.position.y = terrain.terrainHeight(waypointTarget.x, waypointTarget.z);
+      waypointHead.position.y = 8.45 + Math.sin(elapsed * 2.5) * 0.22;
     }
     
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);

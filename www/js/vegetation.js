@@ -1,5 +1,16 @@
+import { rangeCorridorT } from './range.js';
+import { mandirFootprintT } from './mandir.js';
+
 export function createVegetation(scene, terrainHeight, collision) {
   const dummy = new THREE.Object3D();
+  const onReserved = (x, z) => rangeCorridorT(x, z) > 0.2 || mandirFootprintT(x, z) > 0.2;
+  function scatterXZ(place, tries = 10) {
+    for (let n = 0; n < tries; n++) {
+      const p = place();
+      if (!onReserved(p.x, p.z)) return p;
+    }
+    return place();
+  }
   const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
     (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
@@ -13,15 +24,16 @@ export function createVegetation(scene, terrainHeight, collision) {
   const treeLeafGeo = new THREE.ConeGeometry(1.6, 3.6, 6);
   const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x223a24, roughness: 1, flatShading: true });
 
-  const treeCount = mobile ? 58 : 80;
+  const treeCount = mobile ? 40 : 58;
   const trunkMesh = new THREE.InstancedMesh(treeTrunkGeo, treeTrunkMat, treeCount);
   const leafMesh = new THREE.InstancedMesh(treeLeafGeo, treeLeafMat, treeCount);
 
   for (let i = 0; i < treeCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 28 + Math.random() * 145;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 28 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.75 + Math.random() * 1.0;
 
@@ -49,7 +61,7 @@ export function createVegetation(scene, terrainHeight, collision) {
     hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, flatShading: true })
   );
 
-  const cherryCount = mobile ? 18 : 25;
+  const cherryCount = mobile ? 12 : 16;
   const blobsPerTree = 3;
   const capacityPerMat = Math.ceil((cherryCount * blobsPerTree) / cherryCanopyMats.length) + 3;
 
@@ -74,9 +86,17 @@ export function createVegetation(scene, terrainHeight, collision) {
       z = groveCenter.z + Math.sin(ang) * rad;
     } else {
       const ang = Math.random() * Math.PI * 2;
-      const rad = 45 + Math.random() * 120;
+      const rad = 45 + Math.random() * 240;
       x = Math.cos(ang) * rad;
       z = Math.sin(ang) * rad;
+    }
+    if (onReserved(x, z)) {
+      const p = scatterXZ(() => {
+        const ang = Math.random() * Math.PI * 2;
+        const rad = 45 + Math.random() * 240;
+        return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+      });
+      x = p.x; z = p.z;
     }
     const y = terrainHeight(x, z);
     const s = 0.72 + Math.random() * 0.75;
@@ -120,7 +140,7 @@ export function createVegetation(scene, terrainHeight, collision) {
     hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, flatShading: true })
   );
 
-  const birchCount = mobile ? 14 : 20;
+  const birchCount = mobile ? 10 : 14;
   const birchTrunkMesh = new THREE.InstancedMesh(
     new THREE.CylinderGeometry(0.16, 0.22, 3.0, 5), birchTrunkMat, birchCount
   );
@@ -136,10 +156,11 @@ export function createVegetation(scene, terrainHeight, collision) {
   let markIdx = 0, birchRobin = 0;
 
   for (let i = 0; i < birchCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 20 + Math.random() * 155;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 20 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.8 + Math.random() * 0.7;
 
@@ -187,14 +208,14 @@ export function createVegetation(scene, terrainHeight, collision) {
   // bushes / shrubs — low clumps near tree lines and trail edges
   const bushPalette = [0x3f5a2c, 0x4d6c34, 0x35502a];
   const bushMats = bushPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 1, flatShading: true }));
-  const bushCount = mobile ? 34 : 50;
+  const bushCount = mobile ? 22 : 32;
   const bushCapacity = Math.ceil(bushCount / bushMats.length) + 3;
   const bushMeshes = bushMats.map(mat => new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.55, 0), mat, bushCapacity));
   const bushCounters = bushMats.map(() => 0);
 
   for (let i = 0; i < bushCount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const rad = 8 + Math.random() * 170;
+    const rad = 8 + Math.random() * 280;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     const y = terrainHeight(x, z);
@@ -216,13 +237,13 @@ export function createVegetation(scene, terrainHeight, collision) {
 
   // ferns — dark, low, clustered mostly under tree cover
   const fernMat = new THREE.MeshStandardMaterial({ color: 0x263c1f, roughness: 1, flatShading: true });
-  const fernCount = mobile ? 52 : 80;
+  const fernCount = mobile ? 28 : 40;
   const fernFrondMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.22, 0.55, 3), fernMat, fernCount * 3);
   let fernIdx = 0;
 
   for (let i = 0; i < fernCount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const rad = 6 + Math.random() * 160;
+    const rad = 6 + Math.random() * 270;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     const y = terrainHeight(x, z);
@@ -245,7 +266,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   const flowerPalette = [0xf5e04a, 0xffffff, 0xdd7fd6, 0xff8fa3, 0x8fb4ff];
   const flowerMats = flowerPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, flatShading: true }));
   const stemMat = new THREE.MeshStandardMaterial({ color: 0x3d5a2a, roughness: 1, flatShading: true });
-  const flowerCount = mobile ? 78 : 120;
+  const flowerCount = mobile ? 40 : 60;
   const flowerCapacity = Math.ceil(flowerCount / flowerMats.length) + 3;
   const flowerHeadMeshes = flowerMats.map(mat => new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.075, 0), mat, flowerCapacity));
   const flowerStemMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.016, 0.28, 3), stemMat, flowerCount);
@@ -253,7 +274,7 @@ export function createVegetation(scene, terrainHeight, collision) {
 
   for (let i = 0; i < flowerCount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const rad = 5 + Math.random() * 175;
+    const rad = 5 + Math.random() * 270;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     // keep flowers out of the densest grove interior so they read as meadow, not undergrowth
@@ -288,18 +309,18 @@ export function createVegetation(scene, terrainHeight, collision) {
   // for "explore the valley" — kept cheap: single geometry, few materials
   const grassPalette = [0x4a6b2c, 0x5c7f36, 0x3f5c26];
   const grassMats = grassPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 1, flatShading: true }));
-  const grassCount = mobile ? 420 : 800;
+  const grassCount = mobile ? 180 : 280;
   const grassCapacity = Math.ceil(grassCount / grassMats.length) + 4;
   const grassMeshes = grassMats.map(mat => new THREE.InstancedMesh(new THREE.ConeGeometry(0.16, 0.46, 3), mat, grassCapacity));
   const grassCounters = grassMats.map(() => 0);
 
   for (let i = 0; i < grassCount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const rad = Math.sqrt(Math.random()) * 195; // uniform area distribution
+    const rad = Math.sqrt(Math.random()) * 300;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     const distCamp = Math.hypot(x, z);
-    if (distCamp < 9) continue; // keep the camp clearing bare underfoot
+    if (distCamp < 9 || onReserved(x, z)) continue;
     const y = terrainHeight(x, z);
     const s = 0.55 + Math.random() * 0.85;
     const matIdx = Math.floor(Math.random() * grassMats.length);
@@ -320,16 +341,17 @@ export function createVegetation(scene, terrainHeight, collision) {
   // rocks / boulders — scattered exploration detail, favor slopes & ridgelines
   const rockPalette = [0x8b8478, 0x9a9284, 0x7c766a];
   const rockMats = rockPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 1, flatShading: true }));
-  const rockCount = 60;
+  const rockCount = 36;
   const rockCapacity = Math.ceil(rockCount / rockMats.length) + 3;
   const rockMeshes = rockMats.map(mat => new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.6, 0), mat, rockCapacity));
   const rockCounters = rockMats.map(() => 0);
 
   for (let i = 0; i < rockCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 10 + Math.random() * 185;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 10 + Math.random() * 290;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.35 + Math.random() * 1.1;
     const matIdx = Math.floor(Math.random() * rockMats.length);
@@ -351,15 +373,16 @@ export function createVegetation(scene, terrainHeight, collision) {
   // fallen logs — occasional horizontal trunks for exploration flavor
   const logMat = new THREE.MeshStandardMaterial({ color: 0x4a3423, roughness: 1, flatShading: true });
   const mossMat = new THREE.MeshStandardMaterial({ color: 0x4d6c34, roughness: 1, flatShading: true });
-  const logCount = 15;
+  const logCount = 10;
   const logMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.24, 0.28, 3.4, 5), logMat, logCount);
   const mossMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.08, 1.2), mossMat, logCount);
 
   for (let i = 0; i < logCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 15 + Math.random() * 175;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 15 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.7 + Math.random() * 0.6;
     const rot = Math.random() * Math.PI * 2;
@@ -382,13 +405,13 @@ export function createVegetation(scene, terrainHeight, collision) {
   // mushrooms — tiny detail clusters near tree bases and logs
   const mushCapMat = new THREE.MeshStandardMaterial({ color: 0xb5473a, roughness: 0.8, flatShading: true });
   const mushStemMat = new THREE.MeshStandardMaterial({ color: 0xe8ddc9, roughness: 1, flatShading: true });
-  const mushCount = 40;
+  const mushCount = 22;
   const mushCapMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.09, 5, 4, 0, Math.PI * 2, 0, Math.PI * 0.55), mushCapMat, mushCount);
   const mushStemMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.025, 0.035, 0.14, 4), mushStemMat, mushCount);
 
   for (let i = 0; i < mushCount; i++) {
     const ang = Math.random() * Math.PI * 2;
-    const rad = 6 + Math.random() * 160;
+    const rad = 6 + Math.random() * 270;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     const y = terrainHeight(x, z);
@@ -440,78 +463,13 @@ export function createVegetation(scene, terrainHeight, collision) {
   }
   scene.add(cloudGroup);
 
-  // ---------------------------------------------------------------
-  // falling particles (unchanged)
-  // ---------------------------------------------------------------
-  function makeFallSystem(count, color, size, opacity, palette) {
-    const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(count * 3);
-    const seed = new Float32Array(count);
-    const spread = 130;
-    for (let i = 0; i < count; i++) {
-      pos[i * 3]     = (Math.random() - 0.5) * spread;
-      pos[i * 3 + 1] = Math.random() * 65;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * spread;
-      seed[i] = Math.random() * Math.PI * 2;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-
-    let mat;
-    if (palette) {
-      const col = new Float32Array(count * 3);
-      const tmp = new THREE.Color();
-      for (let i = 0; i < count; i++) {
-        tmp.set(palette[Math.floor(Math.random() * palette.length)]);
-        col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
-      }
-      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-      mat = new THREE.PointsMaterial({
-        size, transparent: true, opacity, depthWrite: false, vertexColors: true
-      });
-    } else {
-      mat = new THREE.PointsMaterial({
-        color, size, transparent: true, opacity, depthWrite: false
-      });
-    }
-    const pts = new THREE.Points(geo, mat);
-    scene.add(pts);
-    return { geo, pos, seed, mat, count, spread, points: pts };
-  }
-
-  const snowSys  = makeFallSystem(mobile ? 600 : 1200, 0xffffff, 0.22, 0.85);
-  const petalSys = makeFallSystem(mobile ? 240 : 500, 0xffb7c5, 0.34, 0.0, sakuraPalette);
-  const leafSys  = makeFallSystem(mobile ? 180 : 400, 0xd97a3a, 0.3, 0.0);
-  let fallFrame = 0;
-
-  function updateFallSystem(sys, dt, t, fallSpeed, sway, windX, playerPos) {
-    // Seasonal systems with zero opacity still cost a full CPU pass otherwise.
-    if (sys.mat.opacity <= 0.01) return;
-    const pos = sys.pos;
-    const seed = sys.seed;
-    for (let i = 0; i < sys.count; i++) {
-      const iy = i * 3 + 1;
-      const ix = i * 3;
-      let y = pos[iy] - dt * fallSpeed;
-      let x = pos[ix] + (Math.sin(t * 0.6 + seed[i]) * sway + windX) * dt;
-      if (y < -2) {
-        y = 58 + Math.random() * 6;
-        x = (Math.random() - 0.5) * sys.spread;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * sys.spread;
-      }
-      pos[iy] = y;
-      pos[ix] = x;
-    }
-    sys.geo.attributes.position.needsUpdate = true;
-    sys.points.position.x = playerPos.x;
-    sys.points.position.z = playerPos.z;
-  }
-
-  function updateFallSystems(dt, t, windX, playerPos) {
-    if (mobile && (++fallFrame & 1)) return;
-    updateFallSystem(snowSys,  dt, t, 5.5, 0.5, windX * 0.3, playerPos);
-    updateFallSystem(petalSys, dt, t, 1.6, 1.6, windX, playerPos);
-    updateFallSystem(leafSys,  dt, t, 2.6, 1.1, windX * 0.8, playerPos);
-  }
+  // Climate still writes seasonal opacity values, so keep lightweight shims
+  // rather than allocating invisible Points geometries every season.
+  const disabledFallSystem = () => ({ mat: { opacity: 0 } });
+  const snowSys = disabledFallSystem();
+  const petalSys = disabledFallSystem();
+  const leafSys = disabledFallSystem();
+  function updateFallSystems() {}
 
   return {
     treeLeafMat,

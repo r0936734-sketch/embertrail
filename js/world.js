@@ -240,6 +240,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Innkeeper',
     x: V.x + 0.5, z: V.z + 5.5, yaw: 0.2,
     palette: { skin: 0xe8c4a8, shirt: 0x8b2e2e, pants: 0x2c2430, hair: 0x3a2218 },
+    guideTo: 'The Flame Tower', guideMessage: 'Mira marks the Flame Tower on your trail map.',
     lines: [
       'Rider. The valley forgets its own name when the hearths go cold.',
       'I keep Emberford\'s inn, but the signal fire on the ridge has been dead for seasons.',
@@ -274,6 +275,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     x: V.x - 8, z: V.z - 2, yaw: 1.1,
     palette: { skin: 0xd4b08c, shirt: 0xc4b48a, pants: 0x3a342c, hair: 0xb8b0a4 },
     gift: { branch: 4 }, giftMessage: 'Hal shares straight ash branches, good for arrow shafts.',
+    guideTo: 'The Old Windmill', guideMessage: 'Hal marks the Old Windmill on your trail map.',
     lines: [
       'The old mill on the hill still has locked sails. A good shot wakes them.',
       'Grain, wind, and patience. Same as a long ride.',
@@ -326,6 +328,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     x: D.x - 2, z: D.z - 1.5, yaw: 2.4,
     palette: { skin: 0xc9a07a, shirt: 0x2f5d6e, pants: 0x243038, hair: 0x1c1814 },
     gift: { arrow: 3 }, giftMessage: 'Kael shares three fishing arrows for a promise to respect the water.',
+    guideTo: 'The Quiet Abbey', guideMessage: 'Kael marks the Quiet Abbey on your trail map.',
     lines: [
       'The millpond inland is kinder than this marsh. Cast a line. Wait.',
       'A trout for Sister Wren and she\'ll bless your road. She\'s at the Quiet Abbey, southwest.',
@@ -380,6 +383,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     x: M.x, z: M.z + 2, yaw: 3.0,
     palette: { skin: 0xc89068, shirt: 0xd9782a, pants: 0x3a2a22, hair: 0x1a1210 },
     gift: { feather: 3 }, giftMessage: 'Nara hands over three wick-feathers for your next quiver.',
+    guideTo: 'Ashen Ruins', guideMessage: 'Nara marks the Ashen Ruins on your trail map.',
     lines: [
       'A lantern for the Ashen Ruins, east of here. The scholar Ash lost theirs in the collapse.',
       'Markets remember every rider who paid in stories instead of coin.',
@@ -410,6 +414,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     title: 'Ruin-scholar',
     x: R.x + 3, z: R.z - 2, yaw: 2.1,
     palette: { skin: 0xd8c0a8, shirt: 0x4a5560, pants: 0x2c3038, hair: 0x8a7a68 },
+    guideTo: 'Mystic Stone', guideMessage: 'Ash marks the Mystic Stone on your trail map.',
     lines: [
       'These stones were a beacon-house, older than Emberford.',
       'Take the lost lantern. Mira can hang it in the inn when you return the last ember.',
@@ -435,6 +440,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     x: S.x, z: S.z + 1, yaw: 0,
     palette: { skin: 0xe6d2bc, shirt: 0x2a3350, pants: 0x1c1c28, hair: 0xeeeeee },
     gift: { arrow: 3 }, giftMessage: 'Ivo gives you three star-fletched practice arrows.',
+    guideTo: 'Sunveil Ridge', guideMessage: 'Ivo marks Sunveil Ridge on your trail map.',
     lines: [
       'Look up on a clear night. The Wanderer, Ember\'s Bow, the Quiet Doe, Riverline.',
       'Hold L when a path of stars sits in your sight. Naming them keeps the dark honest.',
@@ -458,6 +464,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     x: C.x + 6, z: C.z + 3, yaw: -0.4,
     palette: { skin: 0xb89474, shirt: 0x4a3c32, pants: 0x2a241e, hair: 0x2a2018 },
     gift: { arrow: 4 }, giftMessage: 'Fen marks four broadhead arrows for the trail ahead.',
+    guideTo: 'Wolfhollow', guideMessage: 'Fen marks Wolfhollow on your trail map.',
     lines: [
       'Wolves own this hollow. Give them room, or give them an arrow. Your choice.',
       'Boar root the eastern meadow. Bear sometimes crosses the far pines.',
@@ -541,6 +548,11 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       Object.entries(npc.gift).forEach(([item, amount]) => inventory.add(item, amount));
       npc.giftGiven = true;
       return npc.giftMessage || `${npc.name} adds useful supplies to your pouch.`;
+    }
+    if (npc.guideTo && !npc.guideGiven) {
+      npc.guideGiven = true;
+      onEvent('npcGuide', { id: npc.id, target: npc.guideTo });
+      return npc.guideMessage || `${npc.name} marks ${npc.guideTo} on your trail map.`;
     }
     return null;
   }
@@ -687,7 +699,9 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     if (nearest) {
       prompt.textContent = nearest.gift && !nearest.giftGiven
         ? `Talk to ${nearest.name} (E) — supplies available`
-        : `Talk to ${nearest.name} (E)`;
+        : nearest.guideTo && !nearest.guideGiven
+          ? `Talk to ${nearest.name} (E) — route available`
+          : `Talk to ${nearest.name} (E)`;
       prompt.style.opacity = '1';
     } else if (nearestSite) {
       prompt.textContent = nearestSite.label;

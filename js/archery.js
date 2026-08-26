@@ -3,6 +3,8 @@
 // can freely look around (drag to aim) — release to loose, and the arrow
 // always flies exactly where the reticle/camera is pointing. Arrows stick
 // and remain visible wherever they land, including on hit targets/animals.
+import { WORLD_RADIUS } from './perf.js';
+
 export function createArchery({
   scene,
   camera,
@@ -345,7 +347,11 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
         continue;
       }
 
-      if (a.life <= 0 || Math.hypot(a.mesh.position.x, a.mesh.position.z) > 320) {
+      const shooter = player.position;
+      const fromShooter = shooter
+        ? Math.hypot(a.mesh.position.x - shooter.x, a.mesh.position.z - shooter.z)
+        : 0;
+      if (a.life <= 0 || fromShooter > WORLD_RADIUS) {
         // Arrow expires in mid-air - show it briefly before disappearing
         landArrow(a, a.mesh.position, 2); // Short life for expired arrows
         arrows.splice(i, 1);

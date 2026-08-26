@@ -1,5 +1,16 @@
+import { rangeCorridorT } from './range.js';
+import { mandirFootprintT } from './mandir.js';
+
 export function createVegetation(scene, terrainHeight, collision) {
   const dummy = new THREE.Object3D();
+  const onReserved = (x, z) => rangeCorridorT(x, z) > 0.2 || mandirFootprintT(x, z) > 0.2;
+  function scatterXZ(place, tries = 10) {
+    for (let n = 0; n < tries; n++) {
+      const p = place();
+      if (!onReserved(p.x, p.z)) return p;
+    }
+    return place();
+  }
   const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
     (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
@@ -18,10 +29,11 @@ export function createVegetation(scene, terrainHeight, collision) {
   const leafMesh = new THREE.InstancedMesh(treeLeafGeo, treeLeafMat, treeCount);
 
   for (let i = 0; i < treeCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 28 + Math.random() * 280;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 28 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.75 + Math.random() * 1.0;
 
@@ -77,6 +89,14 @@ export function createVegetation(scene, terrainHeight, collision) {
       const rad = 45 + Math.random() * 240;
       x = Math.cos(ang) * rad;
       z = Math.sin(ang) * rad;
+    }
+    if (onReserved(x, z)) {
+      const p = scatterXZ(() => {
+        const ang = Math.random() * Math.PI * 2;
+        const rad = 45 + Math.random() * 240;
+        return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+      });
+      x = p.x; z = p.z;
     }
     const y = terrainHeight(x, z);
     const s = 0.72 + Math.random() * 0.75;
@@ -136,10 +156,11 @@ export function createVegetation(scene, terrainHeight, collision) {
   let markIdx = 0, birchRobin = 0;
 
   for (let i = 0; i < birchCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 20 + Math.random() * 280;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 20 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.8 + Math.random() * 0.7;
 
@@ -299,7 +320,7 @@ export function createVegetation(scene, terrainHeight, collision) {
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
     const distCamp = Math.hypot(x, z);
-    if (distCamp < 9) continue; // keep the camp clearing bare underfoot
+    if (distCamp < 9 || onReserved(x, z)) continue;
     const y = terrainHeight(x, z);
     const s = 0.55 + Math.random() * 0.85;
     const matIdx = Math.floor(Math.random() * grassMats.length);
@@ -326,10 +347,11 @@ export function createVegetation(scene, terrainHeight, collision) {
   const rockCounters = rockMats.map(() => 0);
 
   for (let i = 0; i < rockCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 10 + Math.random() * 290;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 10 + Math.random() * 290;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.35 + Math.random() * 1.1;
     const matIdx = Math.floor(Math.random() * rockMats.length);
@@ -356,10 +378,11 @@ export function createVegetation(scene, terrainHeight, collision) {
   const mossMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.08, 1.2), mossMat, logCount);
 
   for (let i = 0; i < logCount; i++) {
-    const ang = Math.random() * Math.PI * 2;
-    const rad = 15 + Math.random() * 280;
-    const x = Math.cos(ang) * rad;
-    const z = Math.sin(ang) * rad;
+    const { x, z } = scatterXZ(() => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 15 + Math.random() * 280;
+      return { x: Math.cos(ang) * rad, z: Math.sin(ang) * rad };
+    });
     const y = terrainHeight(x, z);
     const s = 0.7 + Math.random() * 0.6;
     const rot = Math.random() * Math.PI * 2;

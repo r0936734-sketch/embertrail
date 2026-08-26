@@ -1,4 +1,4 @@
-export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) {
+export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, onWaypointChange = () => {}) {
   const clockEl = document.getElementById('clockEl');
   const speedEl = document.getElementById('speedEl');
   const fpsEl = document.getElementById('fpsEl');
@@ -77,6 +77,94 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
   const discovered = new Set();
   const firedEvents = new Set();
   const transientTracker = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+
+  // A small DOM map keeps navigation useful without adding another canvas or render pass.
+  let mapOpen = false;
+  let waypoint = null;
+  const mapBackdrop = document.createElement('div');
+  Object.assign(mapBackdrop.style, {
+    position: 'fixed', inset: '0', display: 'none', zIndex: '118',
+    background: 'rgba(4, 8, 13, 0.58)', backdropFilter: 'blur(3px)'
+  });
+  const mapPanel = document.createElement('section');
+  Object.assign(mapPanel.style, {
+    position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+    width: 'min(560px, 90vw)', maxHeight: '72vh', overflowY: 'auto', display: 'none',
+    zIndex: '119', padding: '18px', boxSizing: 'border-box', borderRadius: '14px',
+    background: 'rgba(13, 19, 28, 0.96)', border: '1px solid rgba(234, 199, 124, 0.45)',
+    boxShadow: '0 16px 48px rgba(0,0,0,0.42)', color: '#f5eddc', fontFamily: 'inherit'
+  });
+  const waypointReadout = document.createElement('div');
+  Object.assign(waypointReadout.style, {
+    position: 'fixed', left: '50%', top: '12%', transform: 'translateX(-50%)', display: 'none',
+    zIndex: '16', maxWidth: '72vw', padding: '7px 12px', borderRadius: '14px',
+    background: 'rgba(28, 21, 13, 0.76)', border: '1px solid rgba(255, 211, 94, 0.42)',
+    color: '#ffe2a2', fontSize: '11px', fontWeight: '700', letterSpacing: '0.06em',
+    textTransform: 'uppercase', pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+  });
+  const mapToggle = document.createElement('button');
+  mapToggle.type = 'button';
+  mapToggle.textContent = 'MAP';
+  Object.assign(mapToggle.style, {
+    position: 'fixed', left: '20px', top: '102px', display: transientTracker ? 'none' : 'block',
+    zIndex: '15', padding: '8px 11px', borderRadius: '8px', cursor: 'pointer',
+    border: '1px solid rgba(226, 236, 248, 0.28)', background: 'rgba(12, 18, 27, 0.76)',
+    color: '#edf4fc', fontSize: '10px', fontWeight: '700', letterSpacing: '0.12em'
+  });
+  document.body.append(mapBackdrop, mapPanel, waypointReadout, mapToggle);
+
+  function renderMap() {
+    const selectedName = waypoint?.name;
+    mapPanel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px">
+        <div><div style="font-size:11px;letter-spacing:.16em;color:#edcd89">TRAIL MAP</div><div style="font-size:13px;opacity:.72;margin-top:4px">Choose a place to set a trail pin.</div></div>
+        <button type="button" data-map-close style="padding:7px 10px;border:1px solid rgba(255,255,255,.22);border-radius:7px;background:rgba(255,255,255,.06);color:#fff;cursor:pointer">CLOSE</button>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.12);margin:12px 0"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
+        ${pois.map((p, index) => `<button type="button" data-waypoint="${index}" style="text-align:left;padding:10px;border-radius:8px;cursor:pointer;color:${selectedName === p.name ? '#ffe2a2' : '#edf4fc'};border:1px solid ${selectedName === p.name ? 'rgba(255,211,94,.72)' : 'rgba(255,255,255,.16)'};background:${selectedName === p.name ? 'rgba(130,90,25,.34)' : 'rgba(255,255,255,.045)'}"><span style="display:block;font-size:12px;font-weight:700">${selectedName === p.name ? '◆ ' : ''}${p.name}</span><span style="display:block;margin-top:3px;font-size:10px;opacity:.66">${Math.round(p.x)}, ${Math.round(p.z)}</span></button>`).join('')}
+      </div>
+      <button type="button" data-waypoint-clear style="margin-top:13px;padding:8px 11px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:transparent;color:#cbd6e5;cursor:pointer">CLEAR PIN</button>`;
+    mapPanel.querySelector('[data-map-close]').addEventListener('click', () => toggleMap(false));
+    mapPanel.querySelector('[data-waypoint-clear]').addEventListener('click', () => {
+      setWaypoint(null);
+      toggleMap(false);
+    });
+    mapPanel.querySelectorAll('[data-waypoint]').forEach(button => {
+      button.addEventListener('click', () => {
+        setWaypoint(pois[Number(button.dataset.waypoint)]);
+        toggleMap(false);
+      });
+    });
+  }
+
+  function setWaypoint(point) {
+    waypoint = point ? { name: point.name, x: point.x, z: point.z } : null;
+    onWaypointChange(waypoint);
+    if (mapOpen) renderMap();
+  }
+
+  function setWaypointByName(name) {
+    const wanted = String(name || '').toLowerCase();
+    const point = pois.find(p => p.name.toLowerCase() === wanted) || pois.find(p => p.name.toLowerCase().includes(wanted));
+    if (point) setWaypoint(point);
+    return !!point;
+  }
+
+  function toggleMap(show = !mapOpen) {
+    mapOpen = !!show;
+    mapBackdrop.style.display = mapOpen ? 'block' : 'none';
+    mapPanel.style.display = mapOpen ? 'block' : 'none';
+    if (mapOpen) renderMap();
+  }
+  mapToggle.addEventListener('click', () => toggleMap());
+  mapBackdrop.addEventListener('click', () => toggleMap(false));
+  window.addEventListener('keydown', event => {
+    if (event.key.toLowerCase() === 'm' && !event.repeat && !event.target.matches('input, textarea, select')) {
+      event.preventDefault();
+      toggleMap();
+    }
+  });
 
   function updatePOI(dt, playerPos) {
     let found = null;
@@ -159,7 +247,16 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
 
   function update(dt, player, climate, speciesProgress) {
     updateCompass(player.heading);
-    updatePOI(dt, player.group.position);
+    const activePos = player.position;
+    updatePOI(dt, activePos);
+
+    if (waypoint) {
+      const distance = Math.hypot(activePos.x - waypoint.x, activePos.z - waypoint.z);
+      waypointReadout.textContent = `PIN: ${waypoint.name} · ${Math.round(distance)}m`;
+      waypointReadout.style.display = 'block';
+    } else {
+      waypointReadout.style.display = 'none';
+    }
 
     if (speciesProgress && (speciesProgress.found !== lastSpeciesFound || speciesProgress.total !== lastSpeciesTotal)) {
       lastSpeciesFound = speciesProgress.found;
@@ -194,6 +291,9 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}) 
 
   return {
     update,
+    toggleMap,
+    setWaypointByName,
+    clearWaypoint() { setWaypoint(null); },
     get discoveredCount() { return discovered.size; },
     get totalPois() { return pois.length; },
     isDiscovered(name) { return discovered.has(name); }

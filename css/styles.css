@@ -333,7 +333,7 @@ canvas:active { cursor:grabbing; }
 }
 .mobile-activity-menu {
   position:fixed; right:max(60px, calc(env(safe-area-inset-right) + 44px)); bottom:max(244px, calc(env(safe-area-inset-bottom) + 220px));
-  grid-template-columns:repeat(3, 48px); gap:5px; z-index:30; pointer-events:auto;
+  grid-template-columns:repeat(2, 48px); gap:5px; z-index:30; pointer-events:auto;
 }
 .mobile-sensitivity {
   display:none; position:fixed; right:max(18px, env(safe-area-inset-right)); bottom:max(244px, calc(env(safe-area-inset-bottom) + 220px));
@@ -464,7 +464,7 @@ canvas:active { cursor:grabbing; }
   }
   body.touch-controls .mobile-activity-menu {
     right:max(55px, calc(env(safe-area-inset-right) + 43px)); bottom:max(220px, calc(env(safe-area-inset-bottom) + 204px));
-    grid-template-columns:repeat(3, 48px); gap:5px;
+    grid-template-columns:repeat(2, 48px); gap:5px;
   }
   body.touch-controls .mobile-activity-menu.is-open { display:grid; }
   body.touch-controls .mobile-sensitivity {

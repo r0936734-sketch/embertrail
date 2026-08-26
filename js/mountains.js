@@ -1,3 +1,6 @@
+import { MANDIR_ORIGIN } from './mandir.js';
+import { RANGE_ORIGIN } from './range.js';
+
 export function createMountains(scene) {
   // ---------- materials that will be recolored by climate ----------
   const nearMat = new THREE.MeshStandardMaterial({
@@ -113,7 +116,13 @@ export function createMountains(scene) {
   for (let i = 0; i < mCount; i++) {
     const ang = (i / mCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
     const rad = 310 + Math.random() * 50;
-    nearGroup.add(makeMountain(Math.cos(ang) * rad, Math.sin(ang) * rad, 0.9 + Math.random() * 0.8));
+    const x = Math.cos(ang) * rad;
+    const z = Math.sin(ang) * rad;
+    // Mountain clusters have wide bases, so leave generous clear zones around
+    // both dedicated activity areas instead of only avoiding their centres.
+    if (Math.hypot(x - MANDIR_ORIGIN.x, z - MANDIR_ORIGIN.z) < 118) continue;
+    if (Math.hypot(x - RANGE_ORIGIN.x, z - RANGE_ORIGIN.z) < 150) continue;
+    nearGroup.add(makeMountain(x, z, 0.9 + Math.random() * 0.8));
   }
   scene.add(nearGroup);
 

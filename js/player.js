@@ -547,9 +547,11 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       else if (keys['s'] || keys['arrowdown']) acc = -0.6;
 
       if (acc !== 0) {
-        const sprinting = climbUnlocked && keys['shift'];
-        const cap = walkSpeed * (sprinting ? 1.8 : 1);
-        speed = THREE.MathUtils.clamp(speed + acc * 8 * dt, -walkSpeed * 0.6, cap);
+        // Sprint is always available on foot. It used to be locked behind the
+        // mountain-climb reward, which made Shift appear to do nothing early on.
+        const sprinting = !!keys['shift'];
+        const cap = walkSpeed * (sprinting ? 2.05 : 1);
+        speed = THREE.MathUtils.clamp(speed + acc * (sprinting ? 10 : 8) * dt, -walkSpeed * 0.6, cap);
       } else {
         speed *= Math.max(0, 1 - dt * 6);
       }
@@ -643,7 +645,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       else if (keys['w'] || keys['arrowup']) accInput = 1;
       else if (keys['s'] || keys['arrowdown']) accInput = -0.55;
 
-      const galloping = keys['shift'] && accInput > 0 && stamina > 1;
+      // Gallop has no stamina/cooldown gate: hold Shift while moving forward
+      // and the horse can always reach full speed.
+      const galloping = keys['shift'] && accInput > 0;
       const desiredMax = galloping ? maxGallop : maxCanter;
 
       if (accInput > 0) speed = Math.min(desiredMax, speed + accelBase * dt * (galloping ? 1.15 : 1));
@@ -653,9 +657,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
         else if (speed < 0) speed = Math.min(0, speed + decelBase * dt);
       }
 
-      if (speed > maxCanter + 0.3) stamina = Math.max(0, stamina - dt * 16);
-      else if (speed < maxTrot) stamina = Math.min(staminaMax, stamina + dt * (speed < 0.3 ? 14 : 7));
-      if (stamina <= 0.5 && speed > maxCanter) speed = maxCanter;
+      stamina = staminaMax;
 
       let turnInput = 0;
       const joystickTurn = Number(keys.joyTurn) || 0;
@@ -851,7 +853,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       ? THREE.MathUtils.clamp(Math.abs(speed) / maxGallop, 0, 1)
       : THREE.MathUtils.clamp(Math.abs(speed) / walkSpeed, 0, 1) * 0.4;
 
-    camera.fov = THREE.MathUtils.lerp(camera.fov, baseFov + speedRatio * 9, Math.min(1, dt * 3));
+    camera.fov = THREE.MathUtils.lerp(camera.fov, baseFov + speedRatio * 5, Math.min(1, dt * 3));
     camera.updateProjectionMatrix();
 
     if (archeryActive && !mounted) {
@@ -918,9 +920,8 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       camera.position.lerp(camPos, Math.min(1, dt * 5));
     }
 
-    const shake = speedRatio * speedRatio * 0.05;
-    camera.position.x += Math.sin(t * 23) * shake;
-    camera.position.y += Math.sin(t * 31 + 1.4) * shake * 0.6;
+    // Keep the view stable at gallop. Horse legs/body still animate, and the
+    // small FOV change above communicates speed without per-frame jitter.
 
     // The smoothing and movement shake can briefly leave the camera below a
     // newly reached slope, so clamp its final position as a safeguard.
