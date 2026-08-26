@@ -94,7 +94,10 @@ export function createTerrain(scene) {
     return Math.sqrt(sx * sx + sz * sz);
   }
 
-  const groundSize = 420;
+  // Give the valley a wider horizon without multiplying the vertex budget:
+  // the old 420x420 sheet used 32k vertices, while this 560x560 sheet stays
+  // in the same low-poly range with a slightly coarser, mobile-friendly grid.
+  const groundSize = 560;
   const segs = 180;
   const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, segs, segs);
   groundGeo.rotateX(-Math.PI / 2);
@@ -111,6 +114,8 @@ export function createTerrain(scene) {
   const cDry = new THREE.Color(0x9c9560);   // sparse/dry patches
   const cLush = new THREE.Color(0x445a2e);  // damp, dense growth
   const cPath = new THREE.Color(0xab8f66);  // worn dirt near camp/trails
+  const cMeadow = new THREE.Color(0x6d8246); // broad eastern meadow
+  const cFarDry = new THREE.Color(0xb09a63); // sun-baked outer shelf
 
   const pathHubs = [
     { x: 0, z: 0 }, { x: -34, z: 24 }, { x: 19, z: 11 }, { x: 46, z: -22 },
@@ -119,7 +124,13 @@ export function createTerrain(scene) {
   const pathSegments = [
     [pathHubs[0], pathHubs[1]], [pathHubs[0], pathHubs[2]], [pathHubs[2], pathHubs[3]],
     [pathHubs[3], pathHubs[4]], [pathHubs[0], pathHubs[5]], [pathHubs[5], pathHubs[6]],
-    [pathHubs[0], pathHubs[7]], [pathHubs[7], pathHubs[8]]
+    [pathHubs[0], pathHubs[7]], [pathHubs[7], pathHubs[8]],
+    // Long, quiet trails make the newly revealed perimeter feel intentional
+    // and give distant destinations a readable visual pull.
+    [pathHubs[2], { x: 178, z: 14 }],
+    [pathHubs[3], { x: 156, z: -112 }],
+    [pathHubs[5], { x: 112, z: 158 }],
+    [pathHubs[1], { x: -150, z: 112 }]
   ];
   function distToSegment(px, pz, a, b) {
     const dx = b.x - a.x;
@@ -150,6 +161,14 @@ export function createTerrain(scene) {
     } else if (moist < 0.4) {
       _mix.lerp(cDry, (0.4 - moist) / 0.4 * 0.5);
     }
+
+    // Broad color-only biomes establish distant bearings without adding
+    // extra meshes: a green meadow toward the east and a dry shelf in the
+    // far northwest. They fade gently into the existing local palette.
+    const meadowT = 1 - THREE.MathUtils.smoothstep(Math.hypot(x - 118, z - 48), 34, 118);
+    if (meadowT > 0) _mix.lerp(cMeadow, meadowT * 0.38);
+    const farDryT = 1 - THREE.MathUtils.smoothstep(Math.hypot(x + 132, z + 138), 42, 128);
+    if (farDryT > 0) _mix.lerp(cFarDry, farDryT * 0.3);
 
     // expose rock on steep slopes
     const slope = terrainSlope(x, z);

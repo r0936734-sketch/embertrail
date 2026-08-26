@@ -9,7 +9,7 @@ export function createFireflies(scene, terrainHeight) {
     { x: -80, z: -55, r: 13 }
   ];
 
-  const perCluster = 36;
+  const perCluster = 10; // Reduced from 18
   const count = clusters.length * perCluster;
 
   const geometry = new THREE.BufferGeometry();

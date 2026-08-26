@@ -1,6 +1,8 @@
 export function createWeather(scene) {
+  const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   // ---------- rain ----------
-  const rainCount = 1800;
+  const rainCount = mobile ? 720 : 1800;
   const rainGeo = new THREE.BufferGeometry();
   const rainPos = new Float32Array(rainCount * 3);
   const rainSeed = new Float32Array(rainCount);
@@ -40,7 +42,7 @@ export function createWeather(scene) {
     });
     // A large, vertical half arc reads as a distant rainbow rather than a
     // ring on the terrain. Fog is intentionally enabled for a softer look.
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(100 - i * 1.8, 0.8, 6, 56, Math.PI), mat);
+     const arc = new THREE.Mesh(new THREE.TorusGeometry(100 - i * 1.8, 0.8, 5, mobile ? 32 : 56, Math.PI), mat);
     arc.userData.mat = mat;
     rainbowGroup.add(arc);
   });
@@ -53,9 +55,10 @@ export function createWeather(scene) {
   let justRained = false;
   let rainbowPlaced = false;
   const rainbowDirection = new THREE.Vector3();
-  let lightningTimer = 9 + Math.random() * 15;
+  let lightningTimer = mobile ? 16 + Math.random() * 18 : 9 + Math.random() * 15;
   let lightningFlash = 0;
   let lightningCount = 0;
+  let rainFrame = 0;
 
   function strikeLightning(playerPos) {
     const x = playerPos.x + (Math.random() - 0.5) * 100;
@@ -108,7 +111,7 @@ export function createWeather(scene) {
       lightningTimer -= dt;
       if (lightningTimer <= 0) {
         strikeLightning(playerPos);
-        lightningTimer = 9 + Math.random() * 19;
+         lightningTimer = mobile ? 16 + Math.random() * 24 : 9 + Math.random() * 19;
       }
     } else {
       lightningTimer = Math.max(lightningTimer, 4);
@@ -125,7 +128,9 @@ export function createWeather(scene) {
     // follow player, animate fall
     rainPoints.position.x = playerPos.x;
     rainPoints.position.z = playerPos.z;
-    if (rainAmt > 0.02) {
+    // Rain is spatially attached to the player, so updating it at 30Hz on
+    // touch devices is visually equivalent while halving buffer writes.
+    if (rainAmt > 0.02 && (!mobile || !(++rainFrame & 1))) {
       for (let i = 0; i < rainCount; i++) {
         const iy = i * 3 + 1;
         rainPos[iy] -= dt * (22 + rainSeed[i] * 6);

@@ -104,3 +104,29 @@ export function playRear(audio) {
   rear.volume = 0.72;
   rear.play().catch(() => {});
 }
+
+// Synthesized hit sound for space enemies
+export function playHit(audio) {
+  if (!audio.started || audio.muted || !audio.audioCtx) return;
+
+  const ctx = audio.audioCtx;
+  const now = ctx.currentTime;
+
+  // Short metallic ping
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(800, now);
+  osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.15);
+}

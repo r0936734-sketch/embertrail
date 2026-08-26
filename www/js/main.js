@@ -1,5 +1,9 @@
-import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
+import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear, playHit } from './audio.js';
 import { createScene } from './scene.js';
+import { createSpaceEnemies } from './spaceEnemy.js';
+import { createWindmill } from './windmill.js';
+import { createMysticStone } from './mysticStone.js';
+import { createFlameTower } from './flametower.js';
 import { createTerrain } from './terrain.js';
 import { createTelevision } from './television.js';
 import { createCollisionSystem } from './collision.js';
@@ -42,7 +46,8 @@ import { createQuests } from './quests.js';
   const {
     scene, camera, renderer, skyUniforms,
     ambientLight, hemiLight, sunLight, moonLight,
-    sunMesh, moon, moonGlow, starsMat, planetsGroup
+    sunMesh, moon, moonGlow, starsMat, planetsGroup,
+    qualityController
   } = createScene();
 
   const collision = createCollisionSystem();
@@ -56,6 +61,7 @@ import { createQuests } from './quests.js';
   const collectibles = createCollectibles(scene, terrain.terrainHeight);
   const fireflies = createFireflies(scene, terrain.terrainHeight);
   const weather = createWeather(scene);
+
   const constellations = createConstellations(scene, starsMat);
   const soundscape = createSoundscape(audio, {
     ridge: { x: 95, z: -72 },
@@ -67,17 +73,17 @@ import { createQuests } from './quests.js';
   const house = createHouse(scene, terrain.terrainHeight, collision, renderer);
 
   const player = createPlayer(
-  scene,
-  terrain.terrainHeight,
-  terrain.terrainNormalApprox,
-  (strength) => playHoof(audio, strength),
-  () => playWhistle(audio),
-  () => playRear(audio),
-  collision
-);
+    scene,
+    terrain.terrainHeight,
+    terrain.terrainNormalApprox,
+    (strength) => playHoof(audio, strength),
+    () => playWhistle(audio),
+    () => playRear(audio),
+    collision
+  );
 
   const climate = createClimate({
-    scene,                                    // ← important
+    scene,
     skyUniforms,
     ambientLight,
     hemiLight,
@@ -107,12 +113,12 @@ import { createQuests } from './quests.js';
   const interiorFloorY = terrain.terrainHeight(housePos.x, housePos.z) - 400;
 
   const tv = createTelevision(scene, {
-  position: { x: housePos.x - 7.7, y: interiorFloorY + 1.55, z: housePos.z - 1.0 },
-  rotationY: Math.PI / 2,
-  interactRadius: 5,   // how close to show the prompt / press V
-  keepOnRadius: 14,    // how far you can walk before it turns off
-  collision
-});
+    position: { x: housePos.x - 7.7, y: interiorFloorY + 1.55, z: housePos.z - 1.0 },
+    rotationY: Math.PI / 2,
+    interactRadius: 5,
+    keepOnRadius: 14,
+    collision
+  });
 
   const traversal = createTraversal(
     scene,
@@ -123,29 +129,24 @@ import { createQuests } from './quests.js';
     house.ziplineAnchor
   );
 
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList], key => {
-    if (key !== 'climbUnlock') return;
-    player.unlockClimb();
-    const toast = document.createElement('div');
-    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
-    Object.assign(toast.style, {
-      position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
-      color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
-      borderRadius: '10px', fontSize: '14px', maxWidth: '70vw', textAlign: 'center',
-      zIndex: 60, opacity: '0', transition: 'opacity 0.6s'
-    });
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => { toast.style.opacity = '1'; });
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 700);
-    }, 4500);
-  });
+  // Flame Tower world position (shared by POI lists before the tower is constructed,
+  // since createFlameTower needs archery which is created further below).
+  const FLAME_TOWER_POS = { x: 130, z: 60 };
+  const flameTowerPoi = {
+    name: 'The Flame Tower',
+    pos: { x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
+    r: 16,
+    flavor:
+      'An old stone beacon rises above the ridge. Its crown is cold — a well-aimed arrow might wake the signal fire once more.'
+  };
   const binocularPois = [
     ...landmarks.poiList.map(p => ({ name: p.name, x: p.pos.x, z: p.pos.z })),
     { name: 'Sunveil Ridge', x: 95, z: -72 },
     { name: 'Northern Pines', x: -55, z: -30 },
-    { name: 'Eastern Meadow', x: 48, z: 28 }
+    { name: 'Eastern Meadow', x: 48, z: 28 },
+    { name: 'The Flame Tower', x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
+    { name: 'The Old Windmill', x: 30, z: 55 },
+    { name: 'Mystic Stone', x: 65, z: 35 }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -160,6 +161,53 @@ import { createQuests } from './quests.js';
     getAimOffset: () => camYawOffset,
     onEvent: (type, data) => quests.handleEvent(type, data)
   });
+
+  const spaceEnemies = createSpaceEnemies({
+    scene,
+    archery,
+    center: { x: 0, z: 0 },
+    playHitSound: () => playHit(audio),
+    onEvent: (type, data) => {
+      if (type === 'spaceKill') quests.toast(`💥 Direct hit — +${data.points} pts`);
+    }
+  });
+
+  // Flame Tower requires archery for the beacon target registration.
+  const flameTower = createFlameTower({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    collision,
+    archery,
+    position: FLAME_TOWER_POS,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'towerLit') quests.toast('🔥 The beacon roars to life!');
+      if (type === 'towerExtinguished') quests.toast('The rain has doused the flame tower.');
+    }
+  });
+
+  const windmill = createWindmill({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    collision,
+    archery,
+    position: { x: 30, z: 55 },
+    onEvent: (type, data) => {
+      if (type === 'millUnlocked') quests.toast('🌬️ The old sails creak and begin to turn once more.');
+    }
+  });
+
+  const mysticStone = createMysticStone({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    archery,
+    position: { x: 65, z: 35 },
+    onEvent: (type, data) => {
+      if (type === 'stoneActivated') quests.toast('✨ The ancient stone awakens with magical light!');
+      if (type === 'stoneColorChanged') quests.toast('🎨 The stone shifts to a new color!');
+    }
+  });
+
   const hunting = createHunting({
     scene,
     terrainHeight: terrain.terrainHeight,
@@ -179,6 +227,56 @@ import { createQuests } from './quests.js';
     },
     origin: { x: 95, z: -72 },
     targetDirection: { x: -0.66, z: 0.75 }
+  });
+
+  // Create UI after all POIs are created
+  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList], key => {
+    if (key !== 'climbUnlock') return;
+    player.unlockClimb();
+    const toast = document.createElement('div');
+    toast.textContent = '⛰ You feel steadier on steep ground — hold Shift while on foot to push harder.';
+    Object.assign(toast.style, {
+      position: 'fixed', left: '50%', top: '38%', transform: 'translateX(-50%)',
+      color: '#f3ead9', background: 'rgba(20,16,12,0.8)', padding: '12px 20px',
+      borderRadius: '10px', fontSize: '14px', maxWidth: '70vw', textAlign: 'center',
+      zIndex: 60, opacity: '0', transition: 'opacity 0.6s'
+    });
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = '1'; });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 700);
+    }, 4500);
+  });
+
+  // Add simple exploration targets at various locations
+  const explorationTargets = [
+    { x: 50, z: 60, name: "Ancient Tree" },
+    { x: -60, z: -40, name: "Stone Circle" },
+    { x: 30, z: -50, name: "Hidden Pond" },
+    { x: -30, z: 70, name: "Windmill Hill" },
+    { x: 80, z: 25, name: "East Glade" }
+  ];
+
+  const explorationMarkers = [];
+  explorationTargets.forEach(target => {
+    const marker = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.3, 0.4, 2, 6),
+      new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 1, flatShading: true })
+    );
+    marker.position.set(target.x, terrain.terrainHeight(target.x, target.z) + 1, target.z);
+    marker.visible = false;
+    scene.add(marker);
+    
+    const glow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xFFD700, transparent: true, opacity: 0.4 })
+    );
+    glow.position.set(target.x, terrain.terrainHeight(target.x, target.z) + 2.5, target.z);
+    glow.visible = false;
+    scene.add(glow);
+    
+    explorationMarkers.push({ marker, glow, x: target.x, z: target.z });
   });
   const forage = createForage({
     scene,
@@ -333,39 +431,40 @@ import { createQuests } from './quests.js';
   }
 
   function refreshContextButton() {
-  if (!touchControls) return;
+    if (!touchControls) return;
 
-  // Read inline style opacity (set by each module's JS) — not getComputedStyle,
-  // which would be overridden by CSS visibility rules on mobile.
-  const prompts = [...document.querySelectorAll('.context-prompt')]
-    .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
+    // Read inline style opacity (set by each module's JS) — not getComputedStyle,
+    // which would be overridden by CSS visibility rules on mobile.
+    const prompts = [...document.querySelectorAll('.context-prompt')]
+      .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
 
-  // Priority: TV (v) first, then anything else
-  const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
+    // Priority: TV (v) first, then anything else
+    const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
 
-  if (!prompt && player.canMount) {
-    contextBtn.textContent = 'MOUNT';
-    contextBtn.dataset.key = 'e';
+    if (!prompt && player.canMount) {
+      contextBtn.textContent = 'MOUNT';
+      contextBtn.dataset.key = 'e';
+      contextBtn.style.display = 'block';
+      return;
+    }
+    if (!prompt) {
+      contextBtn.style.display = 'none';
+      contextBtn.dataset.key = '';
+      return;
+    }
+
+    const key = prompt.dataset.mobileKey;
+    const promptText = prompt.textContent;
+    let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
+    if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
+    if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
+    if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
+    if (key === 'v') label = /turn off/i.test(promptText) ? 'TV OFF' : 'TV';
+    contextBtn.textContent = label || 'ACTION';
+    contextBtn.dataset.key = key;
     contextBtn.style.display = 'block';
-    return;
-  }
-  if (!prompt) {
-    contextBtn.style.display = 'none';
-    contextBtn.dataset.key = '';
-    return;
   }
 
-  const key = prompt.dataset.mobileKey;
-  const promptText = prompt.textContent;
-  let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
-  if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
-  if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
-  if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
-  if (key === 'v') label = /turn off/i.test(promptText) ? 'TV OFF' : 'TV';
-  contextBtn.textContent = label || 'ACTION';
-  contextBtn.dataset.key = key;
-  contextBtn.style.display = 'block';
-}
   function refreshMobileButtons() {
     if (!touchControls) return;
     callHorseBtn.style.display = player.mounted ? 'none' : 'block';
@@ -596,7 +695,7 @@ import { createQuests } from './quests.js';
     camYawOffset -= dx * 0.006 * lookSensitivity;
     // Positive dy = finger/mouse moved DOWN = camera should look down (pitch increases)
     // Negative dy = finger/mouse moved UP   = camera should look up  (pitch decreases)
-    camPitch = THREE.MathUtils.clamp(camPitch + dy * 0.004 * lookSensitivity, -1.3, 1.4);
+    camPitch = THREE.MathUtils.clamp(camPitch + dy * 0.004 * lookSensitivity, -0.65, 1.4);
     lastManualLook = performance.now();
   });
   domEl.addEventListener('wheel', e => {
@@ -606,34 +705,50 @@ import { createQuests } from './quests.js';
 
   // ── Pinch-to-zoom (two-finger) ───────────────────────────────────────
   let pinchDist = null;
+
+  function canvasTouches(e) {
+    // Only count fingers that actually started on the canvas — otherwise a
+    // finger held on the AIM button (or any other HUD button) gets counted
+    // toward e.touches.length too, since TouchList is page-wide, and that
+    // falsely triggers pinch-zoom / kills the look-drag while aiming.
+    return Array.from(e.touches).filter(t => t.target === domEl);
+  }
+
   domEl.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
+    const ct = canvasTouches(e);
+    if (ct.length === 2) {
       pinchDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
+        ct[0].clientX - ct[1].clientX,
+        ct[0].clientY - ct[1].clientY
       );
       e.preventDefault();
+    } else {
+      pinchDist = null;
     }
   }, { passive: false });
+
   domEl.addEventListener('touchmove', e => {
-    if (e.touches.length === 2 && pinchDist !== null) {
+    const ct = canvasTouches(e);
+    if (ct.length === 2 && pinchDist !== null) {
       const newDist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
+        ct[0].clientX - ct[1].clientX,
+        ct[0].clientY - ct[1].clientY
       );
       const delta = pinchDist - newDist;
       camDist = THREE.MathUtils.clamp(camDist + delta * 0.04, 6, 36);
       pinchDist = newDist;
-      // Cancel camera drag while pinching
       dragging = false;
       e.preventDefault();
+    } else if (ct.length < 2) {
+      pinchDist = null;
     }
   }, { passive: false });
+
   domEl.addEventListener('touchend', e => {
-    if (e.touches.length < 2) pinchDist = null;
+    if (canvasTouches(e).length < 2) pinchDist = null;
   }, { passive: false });
   // ────────────────────────────────────────────────────────────────────
-  
+
   // Desktop can fullscreen the canvas; mobile must fullscreen the document so HUD controls remain visible.
   domEl.addEventListener('dblclick', e => {
     e.preventDefault();
@@ -655,19 +770,26 @@ import { createQuests } from './quests.js';
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
-  
+
 
   // ---------- main loop ----------
   let lastTime = performance.now();
   let elapsed = 0;
   let firstFrame = true;
   let windAngle = 0;
+  let frameNumber = 0;
+  let lastDomRefresh = 0;
 
   function animate(now) {
     requestAnimationFrame(animate);
 
-    let dt = (now - lastTime) / 1000;
+    const rawDt = Math.max(0, (now - lastTime) / 1000);
+    let dt = rawDt;
     lastTime = now;
+    const qualityLevel = qualityController.sample(now, rawDt);
+    const visualStride = qualityLevel === 0 ? 3 : qualityLevel === 1 ? 2 : 1;
+    const updateVisuals = frameNumber % visualStride === 0;
+    frameNumber++;
     dt = Math.min(dt, 0.05);
     elapsed += dt;
     windAngle += dt * 0.05;
@@ -694,7 +816,7 @@ import { createQuests } from './quests.js';
       inventory.update(dt, keys, () => quests.handleEvent('craft'));
       quests.update(dt, keys);
       forage.update(dt, keys, player.position);
-
+      flameTower.update(dt, elapsed, { isRaining: weather.isRaining, rainAmount: weather.rainAmount });
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
       }
@@ -710,9 +832,10 @@ import { createQuests } from './quests.js';
     vegetation.updateFallSystems(dt, elapsed, windX, player.group.position);
     wildlife.update(dt, elapsed, player.group.position, player.speed);
     hunting.update(dt, elapsed, player.position);
-    range.update(dt, camera);
+    range.update(dt, camera, player.group.position);
+    spaceEnemies.update(dt, elapsed);
     landmarks.update(dt, elapsed, isSummer);
-    waterfall.update(dt, elapsed);
+    waterfall.update(dt, elapsed, player.group.position);
     const dMillpond = Math.hypot(
       player.group.position.x - landmarks.PD_POS.x,
       player.group.position.z - landmarks.PD_POS.z
@@ -724,20 +847,40 @@ import { createQuests } from './quests.js';
     const nearestPond = dTwinFalls < dMillpond ? waterfall.pondPos : landmarks.PD_POS;
     const speciesProgress = collectibles.update(dt, elapsed, player.group.position, nearestPond);
     climate.update(dt, elapsed);
-    fireflies.update(dt, elapsed, 1 - climate.dayAmt);
+    if (updateVisuals) fireflies.update(dt * visualStride, elapsed, 1 - climate.dayAmt);
+    windmill.update(dt, elapsed, windX, 1 - climate.dayAmt, player.group.position);
+    mysticStone.update(dt, elapsed, player.group.position);
+    
+    // Update exploration markers visibility
+    if (updateVisuals) {
+      explorationMarkers.forEach(em => {
+        const dist = Math.hypot(player.group.position.x - em.x, player.group.position.z - em.z);
+        const shouldRender = dist < 120;
+        em.marker.visible = shouldRender;
+        em.glow.visible = shouldRender;
+      });
+    }
+    
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
-    constellations.update(dt, camera, 1 - climate.dayAmt);
+    if (updateVisuals) constellations.update(dt * visualStride, camera, 1 - climate.dayAmt);
     soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
     binoculars.update(dt, camera, player.group.position, name => ui.isDiscovered(name));
     player.setBinocularsActive(binoculars.active);
     ui.update(dt, player, climate, speciesProgress);
-    refreshContextButton();
-    refreshMobileButtons();
+    // These functions query and write several DOM nodes; neither needs to run
+    // at display refresh rate.
+    if (now - lastDomRefresh > (touchControls ? 120 : 300)) {
+      refreshContextButton();
+      refreshMobileButtons();
+      lastDomRefresh = now;
+    }
 
-    vegetation.clouds.forEach(c => {
-      c.position.x += c.userData.drift * dt;
-      if (c.position.x > 280) c.position.x = -280;
-    });
+    if (updateVisuals) {
+      vegetation.clouds.forEach(c => {
+        c.position.x += c.userData.drift * dt * visualStride;
+        if (c.position.x > 280) c.position.x = -280;
+      });
+    }
 
     house.updateWindowView();
     renderer.render(scene, camera);

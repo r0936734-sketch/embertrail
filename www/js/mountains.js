@@ -117,7 +117,7 @@ export function createMountains(scene) {
   const mCount = 34;
   for (let i = 0; i < mCount; i++) {
     const ang = (i / mCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
-    const rad = 168 + Math.random() * 45;
+    const rad = 230 + Math.random() * 45;
     nearGroup.add(makeMountain(Math.cos(ang) * rad, Math.sin(ang) * rad, 0.9 + Math.random() * 0.8));
   }
   scene.add(nearGroup);
@@ -126,7 +126,7 @@ export function createMountains(scene) {
   const midGroup = new THREE.Group();
   for (let i = 0; i < 30; i++) {
     const ang = (i / 30) * Math.PI * 2 + Math.random() * 0.25;
-    const rad = 240 + Math.random() * 55;
+    const rad = 310 + Math.random() * 55;
     const h = 80 + Math.random() * 70;
     const r = 30 + Math.random() * 26;
     const geo = new THREE.ConeGeometry(r, h, 8 + Math.floor(Math.random() * 2), 1);
@@ -147,7 +147,7 @@ export function createMountains(scene) {
   const farGroup = new THREE.Group();
   for (let i = 0; i < 38; i++) {
     const ang = (i / 38) * Math.PI * 2 + Math.random() * 0.2;
-    const rad = 340 + Math.random() * 100;
+    const rad = 420 + Math.random() * 100;
     const h = 75 + Math.random() * 75;
     const r = 38 + Math.random() * 32;
     const geo = new THREE.ConeGeometry(r, h, 6, 1);

@@ -1,5 +1,7 @@
 export function createVegetation(scene, terrainHeight, collision) {
   const dummy = new THREE.Object3D();
+  const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 
   function rand(min, max) { return min + Math.random() * (max - min); }
 
@@ -11,7 +13,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   const treeLeafGeo = new THREE.ConeGeometry(1.6, 3.6, 6);
   const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x223a24, roughness: 1, flatShading: true });
 
-  const treeCount = 80; // Reduced from 120
+  const treeCount = mobile ? 58 : 80;
   const trunkMesh = new THREE.InstancedMesh(treeTrunkGeo, treeTrunkMat, treeCount);
   const leafMesh = new THREE.InstancedMesh(treeLeafGeo, treeLeafMat, treeCount);
 
@@ -47,7 +49,7 @@ export function createVegetation(scene, terrainHeight, collision) {
     hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, flatShading: true })
   );
 
-  const cherryCount = 25; // Reduced from 40
+  const cherryCount = mobile ? 18 : 25;
   const blobsPerTree = 3;
   const capacityPerMat = Math.ceil((cherryCount * blobsPerTree) / cherryCanopyMats.length) + 3;
 
@@ -118,7 +120,7 @@ export function createVegetation(scene, terrainHeight, collision) {
     hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.85, flatShading: true })
   );
 
-  const birchCount = 20; // Reduced from 30
+  const birchCount = mobile ? 14 : 20;
   const birchTrunkMesh = new THREE.InstancedMesh(
     new THREE.CylinderGeometry(0.16, 0.22, 3.0, 5), birchTrunkMat, birchCount
   );
@@ -185,7 +187,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   // bushes / shrubs — low clumps near tree lines and trail edges
   const bushPalette = [0x3f5a2c, 0x4d6c34, 0x35502a];
   const bushMats = bushPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 1, flatShading: true }));
-  const bushCount = 50; // Reduced from 80
+  const bushCount = mobile ? 34 : 50;
   const bushCapacity = Math.ceil(bushCount / bushMats.length) + 3;
   const bushMeshes = bushMats.map(mat => new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.55, 0), mat, bushCapacity));
   const bushCounters = bushMats.map(() => 0);
@@ -214,7 +216,7 @@ export function createVegetation(scene, terrainHeight, collision) {
 
   // ferns — dark, low, clustered mostly under tree cover
   const fernMat = new THREE.MeshStandardMaterial({ color: 0x263c1f, roughness: 1, flatShading: true });
-  const fernCount = 80; // Reduced from 130
+  const fernCount = mobile ? 52 : 80;
   const fernFrondMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.22, 0.55, 3), fernMat, fernCount * 3);
   let fernIdx = 0;
 
@@ -243,7 +245,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   const flowerPalette = [0xf5e04a, 0xffffff, 0xdd7fd6, 0xff8fa3, 0x8fb4ff];
   const flowerMats = flowerPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, flatShading: true }));
   const stemMat = new THREE.MeshStandardMaterial({ color: 0x3d5a2a, roughness: 1, flatShading: true });
-  const flowerCount = 120; // Reduced from 200
+  const flowerCount = mobile ? 78 : 120;
   const flowerCapacity = Math.ceil(flowerCount / flowerMats.length) + 3;
   const flowerHeadMeshes = flowerMats.map(mat => new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.075, 0), mat, flowerCapacity));
   const flowerStemMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.016, 0.28, 3), stemMat, flowerCount);
@@ -286,7 +288,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   // for "explore the valley" — kept cheap: single geometry, few materials
   const grassPalette = [0x4a6b2c, 0x5c7f36, 0x3f5c26];
   const grassMats = grassPalette.map(hex => new THREE.MeshStandardMaterial({ color: hex, roughness: 1, flatShading: true }));
-  const grassCount = 800; // Reduced from 1500
+  const grassCount = mobile ? 420 : 800;
   const grassCapacity = Math.ceil(grassCount / grassMats.length) + 4;
   const grassMeshes = grassMats.map(mat => new THREE.InstancedMesh(new THREE.ConeGeometry(0.16, 0.46, 3), mat, grassCapacity));
   const grassCounters = grassMats.map(() => 0);
@@ -414,9 +416,9 @@ export function createVegetation(scene, terrainHeight, collision) {
   });
   const clouds = [];
   const cloudGroup = new THREE.Group();
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < (mobile ? 7 : 10); i++) {
     const c = new THREE.Group();
-    const puffs = 2 + Math.floor(Math.random() * 3);
+    const puffs = mobile ? 2 : 2 + Math.floor(Math.random() * 3);
     for (let p = 0; p < puffs; p++) {
       const puff = new THREE.Mesh(
         new THREE.IcosahedronGeometry(3.2 + Math.random() * 2.8, 0),
@@ -476,11 +478,14 @@ export function createVegetation(scene, terrainHeight, collision) {
     return { geo, pos, seed, mat, count, spread, points: pts };
   }
 
-  const snowSys  = makeFallSystem(1200, 0xffffff, 0.22, 0.85);
-  const petalSys = makeFallSystem(500, 0xffb7c5, 0.34, 0.0, sakuraPalette);
-  const leafSys  = makeFallSystem(400, 0xd97a3a, 0.3, 0.0);
+  const snowSys  = makeFallSystem(mobile ? 600 : 1200, 0xffffff, 0.22, 0.85);
+  const petalSys = makeFallSystem(mobile ? 240 : 500, 0xffb7c5, 0.34, 0.0, sakuraPalette);
+  const leafSys  = makeFallSystem(mobile ? 180 : 400, 0xd97a3a, 0.3, 0.0);
+  let fallFrame = 0;
 
   function updateFallSystem(sys, dt, t, fallSpeed, sway, windX, playerPos) {
+    // Seasonal systems with zero opacity still cost a full CPU pass otherwise.
+    if (sys.mat.opacity <= 0.01) return;
     const pos = sys.pos;
     const seed = sys.seed;
     for (let i = 0; i < sys.count; i++) {
@@ -502,6 +507,7 @@ export function createVegetation(scene, terrainHeight, collision) {
   }
 
   function updateFallSystems(dt, t, windX, playerPos) {
+    if (mobile && (++fallFrame & 1)) return;
     updateFallSystem(snowSys,  dt, t, 5.5, 0.5, windX * 0.3, playerPos);
     updateFallSystem(petalSys, dt, t, 1.6, 1.6, windX, playerPos);
     updateFallSystem(leafSys,  dt, t, 2.6, 1.1, windX * 0.8, playerPos);

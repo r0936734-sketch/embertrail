@@ -46,7 +46,8 @@ import { createQuests } from './quests.js';
   const {
     scene, camera, renderer, skyUniforms,
     ambientLight, hemiLight, sunLight, moonLight,
-    sunMesh, moon, moonGlow, starsMat, planetsGroup
+    sunMesh, moon, moonGlow, starsMat, planetsGroup,
+    qualityController
   } = createScene();
 
   const collision = createCollisionSystem();
@@ -776,12 +777,19 @@ import { createQuests } from './quests.js';
   let elapsed = 0;
   let firstFrame = true;
   let windAngle = 0;
+  let frameNumber = 0;
+  let lastDomRefresh = 0;
 
   function animate(now) {
     requestAnimationFrame(animate);
 
-    let dt = (now - lastTime) / 1000;
+    const rawDt = Math.max(0, (now - lastTime) / 1000);
+    let dt = rawDt;
     lastTime = now;
+    const qualityLevel = qualityController.sample(now, rawDt);
+    const visualStride = qualityLevel === 0 ? 3 : qualityLevel === 1 ? 2 : 1;
+    const updateVisuals = frameNumber % visualStride === 0;
+    frameNumber++;
     dt = Math.min(dt, 0.05);
     elapsed += dt;
     windAngle += dt * 0.05;
@@ -839,31 +847,40 @@ import { createQuests } from './quests.js';
     const nearestPond = dTwinFalls < dMillpond ? waterfall.pondPos : landmarks.PD_POS;
     const speciesProgress = collectibles.update(dt, elapsed, player.group.position, nearestPond);
     climate.update(dt, elapsed);
-    fireflies.update(dt, elapsed, 1 - climate.dayAmt);
+    if (updateVisuals) fireflies.update(dt * visualStride, elapsed, 1 - climate.dayAmt);
     windmill.update(dt, elapsed, windX, 1 - climate.dayAmt, player.group.position);
     mysticStone.update(dt, elapsed, player.group.position);
     
     // Update exploration markers visibility
-    explorationMarkers.forEach(em => {
-      const dist = Math.hypot(player.group.position.x - em.x, player.group.position.z - em.z);
-      const shouldRender = dist < 120;
-      em.marker.visible = shouldRender;
-      em.glow.visible = shouldRender;
-    });
+    if (updateVisuals) {
+      explorationMarkers.forEach(em => {
+        const dist = Math.hypot(player.group.position.x - em.x, player.group.position.z - em.z);
+        const shouldRender = dist < 120;
+        em.marker.visible = shouldRender;
+        em.glow.visible = shouldRender;
+      });
+    }
     
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
-    constellations.update(dt, camera, 1 - climate.dayAmt);
+    if (updateVisuals) constellations.update(dt * visualStride, camera, 1 - climate.dayAmt);
     soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
     binoculars.update(dt, camera, player.group.position, name => ui.isDiscovered(name));
     player.setBinocularsActive(binoculars.active);
     ui.update(dt, player, climate, speciesProgress);
-    refreshContextButton();
-    refreshMobileButtons();
+    // These functions query and write several DOM nodes; neither needs to run
+    // at display refresh rate.
+    if (now - lastDomRefresh > (touchControls ? 120 : 300)) {
+      refreshContextButton();
+      refreshMobileButtons();
+      lastDomRefresh = now;
+    }
 
-    vegetation.clouds.forEach(c => {
-      c.position.x += c.userData.drift * dt;
-      if (c.position.x > 280) c.position.x = -280;
-    });
+    if (updateVisuals) {
+      vegetation.clouds.forEach(c => {
+        c.position.x += c.userData.drift * dt * visualStride;
+        if (c.position.x > 280) c.position.x = -280;
+      });
+    }
 
     house.updateWindowView();
     renderer.render(scene, camera);

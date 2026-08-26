@@ -1,7 +1,21 @@
 export function createScene() {
   const wrap = document.getElementById('canvas-wrap');
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  const mobile = window.matchMedia('(pointer: coarse)').matches ||
+    navigator.maxTouchPoints > 0 ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const maxPixelRatio = mobile ? 1.0 : 1.25;
+  const renderer = new THREE.WebGLRenderer({
+    antialias: false,
+    alpha: false,
+    depth: true,
+    stencil: false,
+    powerPreference: 'high-performance',
+    preserveDrawingBuffer: false
+  });
+  const devicePixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio);
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.shadowMap.enabled = false;
+  renderer.setAnimationLoop ? renderer.setAnimationLoop(null) : null;
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x5b7086, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -24,6 +38,46 @@ export function createScene() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
+
+  // A small, hysteretic quality controller keeps fill-rate reasonable on phones
+  // while allowing faster devices to recover. It only changes render resolution;
+  // gameplay and module APIs remain untouched.
+  let renderScale = mobile ? 0.85 : 1;
+  let qualityLevel = mobile ? 1 : 2;
+  let smoothFps = 60;
+  let lastAdjustment = 0;
+  const qualityController = {
+    mobile,
+    getLevel: () => qualityLevel,
+    getRenderScale: () => renderScale,
+    getFps: () => smoothFps,
+    setRenderScale(scale) {
+      renderScale = THREE.MathUtils.clamp(Number(scale) || 1, 0.55, 1);
+      renderer.setPixelRatio(devicePixelRatio * renderScale);
+    },
+    setQuality(level) {
+      qualityLevel = THREE.MathUtils.clamp(Math.round(level), 0, 2);
+      const scales = mobile ? [0.62, 0.78, 0.92] : [0.72, 0.88, 1];
+      const nextScale = scales[qualityLevel];
+      if (nextScale === renderScale) return;
+      this.setRenderScale(nextScale);
+    },
+    sample(now, frameSeconds) {
+      if (!(frameSeconds > 0)) return qualityLevel;
+      const fps = THREE.MathUtils.clamp(1 / frameSeconds, 10, 120);
+      smoothFps += (fps - smoothFps) * 0.08;
+      if (now - lastAdjustment < 1400) return qualityLevel;
+      if (smoothFps < 25 && qualityLevel > 0) {
+        this.setQuality(qualityLevel - 1);
+        lastAdjustment = now;
+      } else if (smoothFps > 52 && qualityLevel < 2) {
+        this.setQuality(qualityLevel + 1);
+        lastAdjustment = now;
+      }
+      return qualityLevel;
+    }
+  };
+  qualityController.setQuality(qualityLevel);
 
   // lights (optimized for performance)
   const ambientLight = new THREE.AmbientLight(0x33456b, 0.6); // Reduced intensity
@@ -153,6 +207,6 @@ export function createScene() {
   return {
     scene, camera, renderer, skyUniforms,
     ambientLight, hemiLight, sunLight, moonLight,
-    sunMesh, moon, moonGlow, starsMat, planetsGroup
+    sunMesh, moon, moonGlow, starsMat, planetsGroup, qualityController
   };
 }

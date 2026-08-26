@@ -12,6 +12,12 @@ node_modules/.bin/serve . -p 5000
 
 Open the Replit preview to play.
 
+The browser build uses adaptive render resolution and mobile-aware budgets
+for vegetation, wildlife, weather, and sky effects. It keeps the same assets
+while reducing distant animation and particle work on touch devices. The
+`J`/`QUESTS` panel also contains the seven-chapter story campaign, and the
+terrain footprint is wider without increasing its vertex budget.
+
 ## APK (Android)
 
 A debug APK is at:
@@ -55,6 +61,7 @@ The APK ends up at `android/app/build/outputs/apk/debug/app-debug.apk`.
 | K / SEASON button | Cycle season |
 | T | Sit by fire |
 | R | Climb watchtower / zipline |
+| J / QUESTS | View the story chapters and bounties |
 
 ## Credits
 

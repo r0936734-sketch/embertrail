@@ -1,4 +1,7 @@
 export function createWildlife(scene, terrainHeight) {
+  const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
+    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  let mobileTick = 0;
   // ---------- deer ----------
   const deerBodyMat = new THREE.MeshStandardMaterial({ color: 0x7a5a3c, roughness: 1, flatShading: true });
   const deerDarkMat = new THREE.MeshStandardMaterial({ color: 0x352417, roughness: 1, flatShading: true });
@@ -167,11 +170,19 @@ export function createWildlife(scene, terrainHeight) {
 
   // ---------- update ----------
   function update(dt, t, playerPos, playerSpeed) {
+    mobileTick += dt;
+    const slowTick = mobile && mobileTick < 0.12;
+    if (mobileTick >= 0.12) mobileTick = 0;
     // deer
     deerHerd.forEach(d => {
       const dx = d.group.position.x - playerPos.x;
       const dz = d.group.position.z - playerPos.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
+      const distSq = dx * dx + dz * dz;
+      const dist = Math.sqrt(distSq);
+      // Distant wildlife contributes little to the scene but still invokes terrain
+      // sampling and several transforms every frame.
+      d.group.visible = distSq < (mobile ? 115 * 115 : 155 * 155);
+      if (!d.group.visible || (slowTick && dist > 34)) return;
       const fast = Math.abs(playerSpeed) > 4.5;
 
       if (d.state !== 'flee' && dist < 12 && (fast || dist < 5.5)) {
@@ -228,6 +239,11 @@ export function createWildlife(scene, terrainHeight) {
 
     // rabbits
     rabbits.forEach(r => {
+      const dx = r.group.position.x - playerPos.x;
+      const dz = r.group.position.z - playerPos.z;
+      const distSq = dx * dx + dz * dz;
+      r.group.visible = distSq < (mobile ? 85 * 85 : 125 * 125);
+      if (!r.group.visible || (slowTick && distSq > 28 * 28)) return;
       if (!r.hopping) {
         r.timer -= dt;
         if (r.timer <= 0) {
@@ -254,7 +270,12 @@ export function createWildlife(scene, terrainHeight) {
 
     // birds
     birdFlocks.forEach(flock => {
+      const dx = flock.center.x - playerPos.x;
+      const dz = flock.center.z - playerPos.z;
+      const distant = dx * dx + dz * dz > (mobile ? 150 * 150 : 230 * 230);
       flock.birds.forEach(b => {
+        b.group.visible = !distant;
+        if (distant || (slowTick && mobile)) return;
         const ang = t * flock.speed + b.phase;
         const x = flock.center.x + Math.cos(ang) * flock.radiusX;
         const z = flock.center.z + Math.sin(ang) * flock.radiusZ;
