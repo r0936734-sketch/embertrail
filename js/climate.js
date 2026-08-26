@@ -76,6 +76,14 @@ export function createClimate(deps) {
 
   const _c1 = new THREE.Color();
   const _c2 = new THREE.Color();
+  const _skyTop = new THREE.Color();
+  const _skyBottom = new THREE.Color();
+  const _seasonTop = new THREE.Color();
+  const _seasonBottom = new THREE.Color();
+  let lastWeatherLabel = '';
+  let lastDriftLabel = '';
+  let lastNightAmt = -1;
+
   function lerpHex(a, b, t) {
     return _c1.set(a).lerp(_c2.set(b), t);
   }
@@ -170,36 +178,42 @@ export function createClimate(deps) {
     sunMesh.material.opacity = dayAmt;
     starsMat.opacity = (1 - dayAmt) * 0.78;
     skyUniforms.nightAmt.value = 1 - dayAmt;
-    planetsGroup.children.forEach(planet => {
-      planet.material.opacity = (1 - dayAmt) * 0.9;
-    });
-
-    const seasonSkyTop = lerpHex(cur.skyTop, nxt.skyTop, blend).clone();
-    const seasonSkyBottom = lerpHex(cur.skyBottom, nxt.skyBottom, blend).clone();
-
-    let skyTop = nightSky.top.clone().lerp(seasonSkyTop, dayAmt);
-    let skyBottom = nightSky.bottom.clone().lerp(seasonSkyBottom, dayAmt);
-    skyTop.lerp(duskTint, duskAmt * 0.25);
-    skyBottom.lerp(duskTint, duskAmt * 0.45);
-
-    skyUniforms.topColor.value.copy(skyTop);
-    skyUniforms.bottomColor.value.copy(skyBottom);
-
-    // This line was crashing before
-    if (scene && scene.fog) {
-      scene.fog.color.copy(skyBottom);
+    const nightAmt = 1 - dayAmt;
+    if (Math.abs(nightAmt - lastNightAmt) > 0.01) {
+      lastNightAmt = nightAmt;
+      planetsGroup.children.forEach(planet => {
+        planet.material.opacity = nightAmt * 0.9;
+      });
     }
 
-    // HUD text
+    _seasonTop.copy(lerpHex(cur.skyTop, nxt.skyTop, blend));
+    _seasonBottom.copy(lerpHex(cur.skyBottom, nxt.skyBottom, blend));
+
+    _skyTop.copy(nightSky.top).lerp(_seasonTop, dayAmt);
+    _skyBottom.copy(nightSky.bottom).lerp(_seasonBottom, dayAmt);
+    _skyTop.lerp(duskTint, duskAmt * 0.25);
+    _skyBottom.lerp(duskTint, duskAmt * 0.45);
+
+    skyUniforms.topColor.value.copy(_skyTop);
+    skyUniforms.bottomColor.value.copy(_skyBottom);
+
+    if (scene && scene.fog) {
+      scene.fog.color.copy(_skyBottom);
+    }
+
+    const weatherLabel = blend < 0.5 ? cur.weather : nxt.weather;
+    const driftLabel = climateWarming < 0.05
+      ? 'first winter'
+      : '+' + (climateWarming * 2.8).toFixed(1) + '°C drift';
     const weatherText = document.getElementById('weatherText');
     const driftText = document.getElementById('driftText');
-    if (weatherText) {
-      weatherText.textContent = blend < 0.5 ? cur.weather : nxt.weather;
+    if (weatherText && weatherLabel !== lastWeatherLabel) {
+      lastWeatherLabel = weatherLabel;
+      weatherText.textContent = weatherLabel;
     }
-    if (driftText) {
-      driftText.textContent = climateWarming < 0.05
-        ? 'first winter'
-        : '+' + (climateWarming * 2.8).toFixed(1) + '°C drift';
+    if (driftText && driftLabel !== lastDriftLabel) {
+      lastDriftLabel = driftLabel;
+      driftText.textContent = driftLabel;
     }
   }
 

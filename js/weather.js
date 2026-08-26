@@ -2,7 +2,7 @@ export function createWeather(scene) {
   const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
     (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   // ---------- rain ----------
-  const rainCount = mobile ? 720 : 1800;
+  const rainCount = mobile ? 280 : 520;
   const rainGeo = new THREE.BufferGeometry();
   const rainPos = new Float32Array(rainCount * 3);
   const rainSeed = new Float32Array(rainCount);
@@ -130,10 +130,11 @@ export function createWeather(scene) {
     rainPoints.position.z = playerPos.z;
     // Rain is spatially attached to the player, so updating it at 30Hz on
     // touch devices is visually equivalent while halving buffer writes.
-    if (rainAmt > 0.02 && (!mobile || !(++rainFrame & 1))) {
-      for (let i = 0; i < rainCount; i++) {
+    if (rainAmt > 0.02 && (++rainFrame & 1) === 0) {
+      const start = rainFrame & 2;
+      for (let i = start; i < rainCount; i += 2) {
         const iy = i * 3 + 1;
-        rainPos[iy] -= dt * (22 + rainSeed[i] * 6);
+        rainPos[iy] -= dt * 2 * (22 + rainSeed[i] * 6);
         if (rainPos[iy] < -2) rainPos[iy] = 38 + Math.random() * 6;
       }
       rainGeo.attributes.position.needsUpdate = true;
@@ -141,7 +142,7 @@ export function createWeather(scene) {
 
     // fog thickens with rain
     if (scene.fog) {
-      const baseNear = 55, baseFar = 280;
+      const baseNear = 80, baseFar = 340;
       scene.fog.near = THREE.MathUtils.lerp(baseNear, 22, rainAmt);
       scene.fog.far = THREE.MathUtils.lerp(baseFar, 130, rainAmt);
     }

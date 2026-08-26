@@ -97,8 +97,8 @@ export function createTerrain(scene) {
   // Give the valley a wider horizon without multiplying the vertex budget:
   // the old 420x420 sheet used 32k vertices, while this 560x560 sheet stays
   // in the same low-poly range with a slightly coarser, mobile-friendly grid.
-  const groundSize = 560;
-  const segs = 180;
+  const groundSize = 920;
+  const segs = 160;
   const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, segs, segs);
   groundGeo.rotateX(-Math.PI / 2);
 
@@ -119,18 +119,20 @@ export function createTerrain(scene) {
 
   const pathHubs = [
     { x: 0, z: 0 }, { x: -34, z: 24 }, { x: 19, z: 11 }, { x: 46, z: -22 },
-    { x: 60, z: -36 }, { x: 48, z: 28 }, { x: 52, z: 36 }, { x: -62, z: -48 }, { x: -80, z: -55 }
+    { x: 60, z: -36 }, { x: 48, z: 28 }, { x: 52, z: 36 }, { x: -62, z: -48 }, { x: -80, z: -55 },
+    { x: -148, z: 48 }, { x: 38, z: 178 }, { x: -188, z: 132 }, { x: 168, z: 148 },
+    { x: 214, z: -52 }, { x: 52, z: -188 }, { x: -176, z: -128 }
   ];
   const pathSegments = [
     [pathHubs[0], pathHubs[1]], [pathHubs[0], pathHubs[2]], [pathHubs[2], pathHubs[3]],
     [pathHubs[3], pathHubs[4]], [pathHubs[0], pathHubs[5]], [pathHubs[5], pathHubs[6]],
     [pathHubs[0], pathHubs[7]], [pathHubs[7], pathHubs[8]],
-    // Long, quiet trails make the newly revealed perimeter feel intentional
-    // and give distant destinations a readable visual pull.
+    [pathHubs[1], pathHubs[9]], [pathHubs[9], pathHubs[11]],
+    [pathHubs[0], pathHubs[10]], [pathHubs[5], pathHubs[12]],
+    [pathHubs[3], pathHubs[13]], [pathHubs[4], pathHubs[14]],
+    [pathHubs[8], pathHubs[15]],
     [pathHubs[2], { x: 178, z: 14 }],
-    [pathHubs[3], { x: 156, z: -112 }],
-    [pathHubs[5], { x: 112, z: 158 }],
-    [pathHubs[1], { x: -150, z: 112 }]
+    [pathHubs[3], { x: 156, z: -112 }]
   ];
   function distToSegment(px, pz, a, b) {
     const dx = b.x - a.x;

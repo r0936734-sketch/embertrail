@@ -4,9 +4,9 @@
 export function createForage({ scene, terrainHeight, inventory, onEvent = () => {} }) {
    const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   const KINDS = {
-    branch:  { color: 0x6a4a2a, label: '🪵 Branch',  count: 26, yOff: 0.18, spin: 0.6 },
-    feather: { color: 0xe4dccb, label: '🪶 Feather', count: 16, yOff: 0.28, spin: 1.4 },
-    herb:    { color: 0x5f9a48, label: '🌿 Herb',    count: 14, yOff: 0.22, spin: 0.9 }
+    branch:  { color: 0x6a4a2a, label: '🪵 Branch',  count: 18, yOff: 0.18, spin: 0.6 },
+    feather: { color: 0xe4dccb, label: '🪶 Feather', count: 12, yOff: 0.28, spin: 1.4 },
+    herb:    { color: 0x5f9a48, label: '🌿 Herb',    count: 12, yOff: 0.22, spin: 0.9 }
   };
 
   const mats = {};
@@ -81,7 +81,7 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
   Object.entries(KINDS).forEach(([kind, cfg]) => {
     for (let i = 0; i < cfg.count; i++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 16 + Math.random() * 96;
+      const r = 16 + Math.random() * 240;
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
 

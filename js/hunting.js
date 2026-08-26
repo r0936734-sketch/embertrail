@@ -332,6 +332,8 @@ export function createHunting({ scene, terrainHeight, archery, inventory, onEven
   spawn('wolf', wildZone);
   spawn('wolf', wildZone);
   spawn('bear', wildZone);
+  spawn('fox', { x: 168, z: 148, r: 22 });
+  spawn('deer', { x: 214, z: -52, r: 22 });
 
   const tmp = new THREE.Vector3();
   const fwd = new THREE.Vector3();
@@ -420,6 +422,20 @@ export function createHunting({ scene, terrainHeight, archery, inventory, onEven
       }
 
       const dist = Math.hypot(playerPos.x - b.mesh.position.x, playerPos.z - b.mesh.position.z);
+      if (dist > 130) {
+        b.mesh.visible = false;
+        if (b.dead) {
+          b.respawn -= t;
+          if (b.respawn <= 0) {
+            b.dead = false;
+            b.hp = b.spec.hp;
+            b.state = 'graze';
+            b.timer = 1 + Math.random() * 3;
+          }
+        }
+        continue;
+      }
+      b.mesh.visible = true;
       b.timer -= t;
 
       // ---------- pheasant: separate, simpler state machine ----------

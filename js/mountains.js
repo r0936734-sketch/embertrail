@@ -1,8 +1,3 @@
-// js/mountains.js
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-// Note: if you prefer the global THREE from the script tag, remove the import
-// and use the global THREE object instead.
-
 export function createMountains(scene) {
   // ---------- materials that will be recolored by climate ----------
   const nearMat = new THREE.MeshStandardMaterial({
@@ -33,8 +28,8 @@ export function createMountains(scene) {
   const snowShad  = new THREE.Color(0xcfe6f2);
 
   function makePeakGeo(r, h, segs) {
-    const heightSegs = 6 + Math.floor(Math.random() * 3);
-    const geo = new THREE.ConeGeometry(r, h, segs, heightSegs, false);
+    const heightSegs = 4;
+    const geo = new THREE.ConeGeometry(r, h, Math.min(segs, 8), heightSegs, false);
     const pa = geo.attributes.position;
     const colors = new Float32Array(pa.count * 3);
     const tmp = new THREE.Color();
@@ -114,19 +109,19 @@ export function createMountains(scene) {
 
   // ---------- near range ----------
   const nearGroup = new THREE.Group();
-  const mCount = 34;
+  const mCount = 16;
   for (let i = 0; i < mCount; i++) {
     const ang = (i / mCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
-    const rad = 230 + Math.random() * 45;
+    const rad = 310 + Math.random() * 50;
     nearGroup.add(makeMountain(Math.cos(ang) * rad, Math.sin(ang) * rad, 0.9 + Math.random() * 0.8));
   }
   scene.add(nearGroup);
 
   // ---------- mid range ----------
   const midGroup = new THREE.Group();
-  for (let i = 0; i < 30; i++) {
-    const ang = (i / 30) * Math.PI * 2 + Math.random() * 0.25;
-    const rad = 310 + Math.random() * 55;
+  for (let i = 0; i < 14; i++) {
+    const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.25;
+    const rad = 420 + Math.random() * 55;
     const h = 80 + Math.random() * 70;
     const r = 30 + Math.random() * 26;
     const geo = new THREE.ConeGeometry(r, h, 8 + Math.floor(Math.random() * 2), 1);
@@ -145,9 +140,9 @@ export function createMountains(scene) {
 
   // ---------- far hazy range ----------
   const farGroup = new THREE.Group();
-  for (let i = 0; i < 38; i++) {
-    const ang = (i / 38) * Math.PI * 2 + Math.random() * 0.2;
-    const rad = 420 + Math.random() * 100;
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.2;
+    const rad = 560 + Math.random() * 80;
     const h = 75 + Math.random() * 75;
     const r = 38 + Math.random() * 32;
     const geo = new THREE.ConeGeometry(r, h, 6, 1);
