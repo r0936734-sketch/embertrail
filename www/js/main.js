@@ -1,6 +1,5 @@
-import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear, playHit } from './audio.js';
+import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
 import { createScene } from './scene.js';
-import { createSpaceEnemies } from './spaceEnemy.js';
 import { createWindmill } from './windmill.js';
 import { createMysticStone } from './mysticStone.js';
 import { createFlameTower } from './flametower.js';
@@ -27,12 +26,15 @@ import { createSoundscape } from './soundscape.js';
 import { createBinoculars } from './binoculars.js';
 import { createInventory } from './inventory.js';
 import { createArchery } from './archery.js';
+import { createTic } from './tic.js';
+import { createBike } from './bike.js';
 import { createHunting } from './hunting.js';
 import { createRange, RANGE_ORIGIN } from './range.js';
 import { createMandir, MANDIR_ORIGIN } from './mandir.js';
 import { createForage } from './forage.js';
 import { createQuests } from './quests.js';
 import { createWorld } from './world.js';
+import { createStunt, STUNT_ORIGIN } from './stunt.js';
 
 (function () {
   'use strict';
@@ -134,6 +136,8 @@ import { createWorld } from './world.js';
   // Flame Tower world position (shared by POI lists before the tower is constructed,
   // since createFlameTower needs archery which is created further below).
   const FLAME_TOWER_POS = { x: 130, z: 60 };
+  const TIC_POS = { x: 95, z: 95 };
+  const BIKE_POS = house.garageSpot;
   const flameTowerPoi = {
     name: 'The Flame Tower',
     pos: { x: FLAME_TOWER_POS.x, z: FLAME_TOWER_POS.z },
@@ -157,7 +161,9 @@ import { createWorld } from './world.js';
     { name: 'Skywatch Observatory', x: 52, z: -188 },
     { name: 'Wolfhollow', x: -176, z: -128 },
     { name: 'Farshot Practice Range', x: RANGE_ORIGIN.x, z: RANGE_ORIGIN.z },
-    { name: 'Shree Baba Prasannadas Ji Mandir', x: MANDIR_ORIGIN.x, z: MANDIR_ORIGIN.z }
+    { name: 'Shree Baba Prasannadas Ji Mandir', x: MANDIR_ORIGIN.x, z: MANDIR_ORIGIN.z },
+    { name: 'Tic-Tac Arena', x: TIC_POS.x, z: TIC_POS.z },
+    { name: 'Home Garage', x: BIKE_POS.x, z: BIKE_POS.z }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
@@ -165,9 +171,13 @@ import { createWorld } from './world.js';
   // ---------- hunting / activities ----------
   const inventory = createInventory(18);
   const quests = createQuests({ inventory });
+  let ui;
   const world = createWorld(scene, terrain.terrainHeight, collision, {
     inventory,
-    onEvent: (type, data) => quests.handleEvent(type, data)
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'npcGuide' && ui) ui.setWaypointByName(data.target);
+    }
   });
   world.setQuests(quests);
   collectibles.setOnEvent((type, data) => quests.handleEvent(type, data));
@@ -178,16 +188,6 @@ import { createWorld } from './world.js';
     inventory,
     getAimOffset: () => camYawOffset,
     onEvent: (type, data) => quests.handleEvent(type, data)
-  });
-
-  const spaceEnemies = createSpaceEnemies({
-    scene,
-    archery,
-    center: { x: 0, z: 0 },
-    playHitSound: () => playHit(audio),
-    onEvent: (type, data) => {
-      if (type === 'spaceKill') quests.toast(`💥 Direct hit — +${data.points} pts`);
-    }
   });
 
   // Flame Tower requires archery for the beacon target registration.
@@ -256,8 +256,71 @@ import { createWorld } from './world.js';
     onEvent: (type, data) => quests.handleEvent(type, data)
   });
 
+  // One lightweight world-space beacon represents the selected map waypoint.
+  const waypointPin = new THREE.Group();
+  const waypointMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd35e, transparent: true, opacity: 0.88, depthWrite: false, depthTest: false
+  });
+
+  const tic = createTic({
+    scene,
+    terrainHeight: terrain.terrainHeight,
+    archery,
+    position: TIC_POS,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'ticWin') quests.toast('★ Board conquered!');
+      if (type === 'ticLose') quests.toast('The board claims victory…');
+    }
+  });
+
+  const stunt = createStunt(scene, terrain.terrainHeight, collision, {
+    position: STUNT_ORIGIN,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'stuntCarJump') quests.toast('Car jump! +' + data.points);
+      if (type === 'stuntTabletop') quests.toast('Tabletop! +' + data.points);
+      if (type === 'stuntHalfpipe') quests.toast('Half-pipe! +' + data.points);
+    }
+  });
+
+  const bike = createBike(scene, terrain.terrainHeight, collision, {
+    position: BIKE_POS,
+    rotationY: 0.55,
+    maxSpeedKmh: 100,
+    roadDistance: terrain.trailDistance,
+    jumpProvider: (position, heading, speed) => stunt.getJumpImpulse(position, heading, speed),
+    surfaceProvider: position => stunt.getSurfaceHeight(position),
+    onEvent: type => {
+      if (type === 'mount') quests.toast('Bike mounted — stay on trails for top speed.');
+    }
+  });
+  const waypointBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.075, 0.13, 22, 6), waypointMaterial
+  );
+  waypointBeam.position.y = 11;
+  const waypointHead = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.72, 0),
+    new THREE.MeshBasicMaterial({ color: 0xfff0aa, transparent: true, opacity: 1, depthWrite: false, depthTest: false })
+  );
+  waypointHead.position.y = 22.8;
+  const waypointRing = new THREE.Mesh(
+    new THREE.TorusGeometry(1.05, 0.07, 5, 12), waypointMaterial
+  );
+  waypointRing.rotation.x = Math.PI / 2;
+  waypointRing.position.y = 22.8;
+  waypointPin.add(waypointBeam, waypointHead, waypointRing);
+  waypointPin.traverse(object => { object.frustumCulled = false; });
+  waypointPin.visible = false;
+  scene.add(waypointPin);
+  let waypointTarget = null;
+
   // Create UI after all POIs are created
-  const ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList], key => {
+  const bikePoi = {
+    name: 'Home Garage', pos: BIKE_POS, r: 8,
+    flavor: 'Your bike is parked in the garage beside the cabin. Use Q or the action button to ride.'
+  };
+  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList, ...tic.poiList, ...stunt.poiList, bikePoi], key => {
     if (typeof key === 'string' && key.startsWith('poi:')) {
       quests.discover(key.slice(4));
       return;
@@ -278,6 +341,10 @@ import { createWorld } from './world.js';
       toast.style.opacity = '0';
       setTimeout(() => toast.remove(), 700);
     }, 4500);
+  }, target => {
+    waypointTarget = target;
+    waypointPin.visible = !!target;
+    if (target) waypointPin.position.set(target.x, terrain.terrainHeight(target.x, target.z), target.z);
   });
 
   // Add simple exploration targets at various locations
@@ -380,6 +447,7 @@ import { createWorld } from './world.js';
   const craftBtn = document.getElementById('craftBtn');
   const pouchBtn = document.getElementById('pouchBtn');
   const questsBtn = document.getElementById('questsBtn');
+  const mapBtn = document.getElementById('mapBtn');
   const launchOverlay = document.getElementById('launchOverlay');
   const launchPageCredits = document.getElementById('launchPageCredits');
   const launchPageHowTo = document.getElementById('launchPageHowTo');
@@ -487,6 +555,23 @@ import { createWorld } from './world.js';
     const key = prompt.dataset.mobileKey;
     const promptText = prompt.textContent;
     let label = ({ e: 'INTERACT', b: 'BINOCS', g: 'COLLECT', c: 'FISH', v: 'TV' })[key] || 'ACTION';
+    if (key === 'q') label = /off/i.test(promptText) ? 'BIKE OFF' : 'RIDE BIKE';
+    if (key === 'e') {
+      if (/dismount/i.test(promptText)) label = 'DISMOUNT';
+      else if (/talk/i.test(promptText)) label = 'TALK';
+      else if (/darshan/i.test(promptText)) label = 'DARSHAN';
+      else if (/bell|ring/i.test(promptText)) label = 'RING';
+      else if (/sleep/i.test(promptText)) label = 'SLEEP';
+      else if (/open|enter/i.test(promptText)) label = 'ENTER';
+      else if (/leave|exit/i.test(promptText)) label = 'EXIT';
+      else if (/read/i.test(promptText)) label = 'READ';
+      else if (/boiling|food/i.test(promptText)) label = 'COOK';
+      else if (/light|dim/i.test(promptText)) label = 'LAMP';
+      else if (/offer|jal|water/i.test(promptText)) label = 'OFFER';
+      else if (/drink/i.test(promptText)) label = 'DRINK';
+      else if (/sit/i.test(promptText)) label = 'SIT';
+      else if (/study/i.test(promptText)) label = 'STUDY';
+    }
     if (key === 'b') label = /lower/i.test(promptText) ? 'LOWER' : 'BINOCS';
     if (key === 'r') label = /ropeway/i.test(promptText) ? 'ROPEWAY' : 'CLIMB';
     if (key === 'c' && /^fishing/i.test(promptText)) label = 'STOP FISH';
@@ -498,9 +583,9 @@ import { createWorld } from './world.js';
 
   function refreshMobileButtons() {
     if (!touchControls) return;
-    callHorseBtn.style.display = player.mounted ? 'none' : 'block';
+    callHorseBtn.style.display = player.mounted || bike.riding ? 'none' : 'block';
     dismountBtn.style.display = player.mounted ? 'block' : 'none';
-    gallopBtn.textContent = player.mounted ? 'GALLOP' : 'SPRINT';
+    gallopBtn.textContent = bike.riding ? 'BOOST' : player.mounted ? 'GALLOP' : 'SPRINT';
     document.getElementById('rearBtn').style.display = player.mounted ? 'block' : 'none';
     bowBtn.style.display = player.canUseArchery ? 'block' : 'none';
   }
@@ -628,6 +713,13 @@ import { createWorld } from './world.js';
     craftBtn.addEventListener('pointerdown', e => useActivity('x', e));
     pouchBtn.addEventListener('pointerdown', e => useActivity('i', e));
     questsBtn.addEventListener('pointerdown', e => useActivity('j', e));
+    mapBtn.addEventListener('pointerdown', e => {
+      ui.toggleMap();
+      mobileActivityMenu.classList.remove('is-open');
+      activityToggle.setAttribute('aria-expanded', 'false');
+      startAudio(audio);
+      e.preventDefault();
+    });
     sensitivitySlider.addEventListener('input', e => {
       setLookSensitivity(e.target.value);
     });
@@ -851,8 +943,10 @@ import { createWorld } from './world.js';
       // Update archery first: F then owns the bow draw rather than the nearby-fire sit action.
       archery.update(dt, keys, elapsed);
       if (archery.aiming) binoculars.deactivate();
-      player.update(dt, keys, structures.fireGroup);
       traversal.update(dt, keys, player.position);
+      bike.update(dt, keys, player);
+      stunt.update(dt, elapsed, player.position, bike.riding ? bike.speed : 0);
+      player.update(dt, keys, structures.fireGroup);
       player.setBinocularsActive(binoculars.active);
 
       inventory.update(dt, keys, () => quests.handleEvent('craft'));
@@ -878,7 +972,7 @@ import { createWorld } from './world.js';
     // dismounted instead of tracking the horse left behind elsewhere.
     range.update(dt, camera, player.position);
     mandir.update(dt, elapsed, player.position);
-    spaceEnemies.update(dt, elapsed);
+    tic.update(dt, elapsed, player.position);
     landmarks.update(dt, elapsed, isSummer, player.group.position);
     waterfall.update(dt, elapsed, player.group.position);
     const dMillpond = Math.hypot(
@@ -904,6 +998,14 @@ import { createWorld } from './world.js';
         em.marker.visible = shouldRender;
         em.glow.visible = shouldRender;
       });
+    }
+
+    if (waypointTarget) {
+      waypointPin.position.y = terrain.terrainHeight(waypointTarget.x, waypointTarget.z);
+      const pulse = Math.sin(elapsed * 2.5) * 0.28;
+      waypointHead.position.y = 22.8 + pulse;
+      waypointRing.position.y = 22.8 + pulse;
+      waypointRing.rotation.z = elapsed * 0.7;
     }
     
     weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);

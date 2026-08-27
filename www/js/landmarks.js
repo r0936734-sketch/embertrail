@@ -445,27 +445,30 @@ export function createLandmarks(scene, terrainHeight, collision) {
   // ─────────────────────────────────────────────────────────────────────────
   let hmFireOn = true;
 
-  function update(dt, t, isSummer) {
-    // waterfall stream
-    for (let i = 0; i < WF_COUNT; i++) {
-      wfAge[i] += dt;
-      wfPos[i * 3 + 1] -= dt * 7.5;
-      wfPos[i * 3]     += Math.sin(t * 2 + wfSeed[i]) * 0.04 * dt;
-      if (wfPos[i * 3 + 1] < 0.5) resetWF(i, false);
-    }
-    wfGeo.attributes.position.needsUpdate = true;
-
-    // mist drift
-    for (let i = 0; i < MIST_COUNT; i++) {
-      mistPos[i * 3]     += Math.sin(t * 0.5 + mistSeed[i]) * 0.2 * dt;
-      mistPos[i * 3 + 1] += 0.25 * dt;
-      if (mistPos[i * 3 + 1] > 3.5) {
-        mistPos[i * 3 + 1] = 0;
-        mistPos[i * 3]     = (Math.random() - 0.5) * 6;
+  function update(dt, t, isSummer, playerPos) {
+    const nearFalls = !playerPos || Math.hypot(playerPos.x - WF_POS.x, playerPos.z - WF_POS.z) < 110;
+    if (nearFalls) {
+      for (let i = 0; i < WF_COUNT; i++) {
+        wfAge[i] += dt;
+        wfPos[i * 3 + 1] -= dt * 7.5;
+        wfPos[i * 3]     += Math.sin(t * 2 + wfSeed[i]) * 0.04 * dt;
+        if (wfPos[i * 3 + 1] < 0.5) resetWF(i, false);
       }
+      wfGeo.attributes.position.needsUpdate = true;
+
+      for (let i = 0; i < MIST_COUNT; i++) {
+        mistPos[i * 3]     += Math.sin(t * 0.5 + mistSeed[i]) * 0.2 * dt;
+        mistPos[i * 3 + 1] += 0.25 * dt;
+        if (mistPos[i * 3 + 1] > 3.5) {
+          mistPos[i * 3 + 1] = 0;
+          mistPos[i * 3]     = (Math.random() - 0.5) * 6;
+        }
+      }
+      mistGeo.attributes.position.needsUpdate = true;
+      wfLight.intensity = 1.2 + Math.sin(t * 4.2) * 0.2;
+    } else {
+      wfLight.intensity = 0;
     }
-    mistGeo.attributes.position.needsUpdate = true;
-    wfLight.intensity = 1.2 + Math.sin(t * 4.2) * 0.2;
 
     // hermit fire
     hmFireOn = !isSummer;

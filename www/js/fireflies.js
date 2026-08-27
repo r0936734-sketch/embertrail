@@ -6,10 +6,11 @@ export function createFireflies(scene, terrainHeight) {
     { x: -34, z: 24, r: 15 },
     { x: 52, z: 36, r: 12 },
     { x: -55, z: -30, r: 17 },
-    { x: -80, z: -55, r: 13 }
+    { x: -148, z: 48, r: 14 },
+    { x: 168, z: 148, r: 12 }
   ];
 
-  const perCluster = 10; // Reduced from 18
+  const perCluster = 7;
   const count = clusters.length * perCluster;
 
   const geometry = new THREE.BufferGeometry();
@@ -97,8 +98,8 @@ export function createFireflies(scene, terrainHeight) {
 
   scene.add(points);
 
-  const warm = new THREE.Color(0xfff38a);
-  const lime = new THREE.Color(0xbef85a);
+  const warmR = 1, warmG = 0.953, warmB = 0.541;
+  const limeR = 0.745, limeG = 0.973, limeB = 0.353;
 
   let currentOpacity = 0;
 
@@ -148,8 +149,7 @@ export function createFireflies(scene, terrainHeight) {
       positions[p + 1] += velocityY[i];
       positions[p + 2] += velocityZ[i];
 
-      const ground =
-        terrainHeight(positions[p], positions[p + 2]) + 0.35;
+      const ground = baseY[i] - 0.05;
 
       if (positions[p + 1] < ground)
         positions[p + 1] = ground;
@@ -171,14 +171,10 @@ export function createFireflies(scene, terrainHeight) {
           3
         );
 
-      const tint =
-        0.5 + 0.5 * Math.sin(phase[i]);
-
-      const color = warm.clone().lerp(lime, tint);
-
-      colors[p] = color.r * blink;
-      colors[p + 1] = color.g * blink;
-      colors[p + 2] = color.b * blink;
+      const tint = 0.5 + 0.5 * Math.sin(phase[i]);
+      colors[p] = (warmR + (limeR - warmR) * tint) * blink;
+      colors[p + 1] = (warmG + (limeG - warmG) * tint) * blink;
+      colors[p + 2] = (warmB + (limeB - warmB) * tint) * blink;
     }
 
     geometry.attributes.position.needsUpdate = true;

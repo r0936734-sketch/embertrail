@@ -163,6 +163,13 @@ export function createTerrain(scene) {
     return Math.hypot(px - cx, pz - cz);
   }
 
+  // Shared with vehicles so their grip can match the paths painted onto terrain.
+  function trailDistance(px, pz) {
+    let nearest = Math.max(0, Math.hypot(px, pz) - 6);
+    for (const [a, b] of pathSegments) nearest = Math.min(nearest, distToSegment(px, pz, a, b));
+    return nearest;
+  }
+
   const _mix = new THREE.Color();
 
   for (let i = 0; i < gPos.count; i++) {
@@ -201,8 +208,7 @@ export function createTerrain(scene) {
 
     // Worn trails link the camp to the major points of interest.
     const dCamp = Math.sqrt(x * x + z * z);
-    let trailD = Infinity;
-    for (const [a, b] of pathSegments) trailD = Math.min(trailD, distToSegment(x, z, a, b));
+    const trailD = trailDistance(x, z);
     const pathT = Math.max(
       1 - THREE.MathUtils.smoothstep(dCamp, 6, 15),
       1 - THREE.MathUtils.smoothstep(trailD, 1.4, 4.2)
@@ -232,6 +238,7 @@ export function createTerrain(scene) {
     terrainHeight,
     terrainNormalApprox,
     terrainSlope,
+    trailDistance,
     moistureNoise,
     groundMat,
     vistaCenter,

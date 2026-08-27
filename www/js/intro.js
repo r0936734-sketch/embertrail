@@ -26,9 +26,15 @@ export function createIntro(camera) {
   function reset() {
     active = true;
     t = 0;
-    if (letterTop)    letterTop.style.opacity    = '1';
-    if (letterBottom) letterBottom.style.opacity = '1';
-    if (skipHint)     skipHint.style.opacity     = '1';
+    if (letterTop) {
+      letterTop.style.opacity = '1';
+      letterTop.textContent = 'THE LAST EMBER';
+    }
+    if (letterBottom) {
+      letterBottom.style.opacity = '1';
+      letterBottom.textContent = 'Hearths go cold along the living trail. Ride west to Emberford.';
+    }
+    if (skipHint) skipHint.style.opacity = '1';
     hudEl.style.opacity = '0';
     // Reset camera to start position
     const ang = -Math.PI * 0.65;

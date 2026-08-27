@@ -60,6 +60,39 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
   porchLight.position.set(0, 1.6, 2.3);
   group.add(porchLight);
 
+  // Open-front garage attached to the cabin's right side. It has no dynamic
+  // lights or collision volume, so the rider can reach the parked bike cheaply.
+  const garage = new THREE.Group();
+  garage.position.set(3.75, 0, -0.2);
+  group.add(garage);
+  const garageWallMat = new THREE.MeshStandardMaterial({ color: 0x765640, roughness: 1, flatShading: true });
+  const garageRoofMat = new THREE.MeshStandardMaterial({ color: 0x49342b, roughness: 1, flatShading: true });
+  const garageFloor = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.12, 4.1), stoneMat);
+  garageFloor.position.set(0, 0.06, 0);
+  garage.add(garageFloor);
+  const garageBack = new THREE.Mesh(new THREE.BoxGeometry(3.25, 3.2, 0.16), garageWallMat);
+  garageBack.position.set(0, 1.6, -2.0);
+  garage.add(garageBack);
+  [-1.52, 1.52].forEach(x => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.4, 0.18), trimMat);
+    post.position.set(x, 1.7, 1.9);
+    garage.add(post);
+  });
+  const garageHeader = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.22, 0.22), trimMat);
+  garageHeader.position.set(0, 3.28, 1.9);
+  garage.add(garageHeader);
+  const garageRoof = new THREE.Mesh(new THREE.BoxGeometry(3.55, 0.28, 4.45), garageRoofMat);
+  garageRoof.position.set(0, 3.48, 0);
+  garageRoof.rotation.z = -0.08;
+  garage.add(garageRoof);
+  const garageLamp = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), windowMat);
+  garageLamp.position.set(0, 3.08, 1.82);
+  garage.add(garageLamp);
+  const garageSpotLocal = new THREE.Vector3(0, 0, 0.35);
+  group.updateMatrixWorld(true);
+  const garageSpotWorld = garage.localToWorld(garageSpotLocal.clone());
+  const garageSpot = { x: garageSpotWorld.x, z: garageSpotWorld.z };
+
   // ropeway anchor post — the far end of the mountain ropeway
   const zipPoleMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1c, roughness: 1, flatShading: true });
   const zipPole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 5.4, 6), zipPoleMat);
@@ -544,6 +577,8 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
     const flicker = 0.9 + Math.sin(elapsed * 8) * 0.08 + Math.sin(elapsed * 17 + 1) * 0.05;
     hearthFlame.scale.set(flicker, flicker * 1.08, flicker);
     hearthLight.intensity = 1.4 + Math.sin(elapsed * 8) * 0.15;
+    // Interior particle buffers only need updating while the cabin is nearby.
+    if (inside || inRange) {
     boilingBubbles.forEach((bubble, index) => {
       const rise = (Math.sin(elapsed * 4.5 + bubble.userData.phase) + 1) * 0.5;
       bubble.position.y = 2.405 + rise * 0.14;
@@ -580,6 +615,7 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
       tip.scale.setScalar(0.8 + incenseGlow * 0.25);
     });
     incenseLight.intensity = 0.26 + incenseGlow * 0.14;
+    }
 
     if (!inside) {
       promptEl.textContent = player.mounted
@@ -631,6 +667,7 @@ export function createHouse(scene, terrainHeight, collision, renderer, options =
     group,
     position,
     ziplineAnchor,
+    garageSpot,
     restRadius: enterRadius,
     update,
     updateWindowView,

@@ -20,6 +20,8 @@ export function createMysticStone({
 
   const stoneMat = new THREE.MeshStandardMaterial({ 
     color: 0x4a4a5a, 
+    emissive: 0x000000,
+    emissiveIntensity: 0,
     roughness: 0.6, 
     flatShading: true,
     metalness: 0.2
@@ -134,6 +136,20 @@ export function createMysticStone({
   const RENDER_DISTANCE = 120;
   const coreWorldPos = new THREE.Vector3(px, y0 + 2.2, pz);
 
+  // The main stone and every loose fragment share stoneMat, so this updates
+  // the entire landmark instead of only the exposed crystal on top.
+  function setStoneColor(index) {
+    const color = colors[index];
+    stoneMat.color.setHex(color.color);
+    stoneMat.emissive.setHex(color.emissive);
+    stoneMat.emissiveIntensity = 0.42;
+    core.material.color.setHex(color.color);
+    core.material.emissive.setHex(color.emissive);
+    magicLight.color.setHex(color.emissive);
+    glowSphere.material.color.setHex(color.emissive);
+    particles.forEach(p => p.material.color.setHex(color.emissive));
+  }
+
   archery.register({
     name: 'mysticStone',
     radius: 2.5,
@@ -142,6 +158,7 @@ export function createMysticStone({
       if (!activated) {
         activated = true;
         glowIntensity = 1;
+        setStoneColor(colorChangeIndex);
         onEvent('stoneActivated', { power });
         
         // Trigger particle burst
@@ -152,12 +169,7 @@ export function createMysticStone({
       } else {
         // Change color on subsequent hits
         colorChangeIndex = (colorChangeIndex + 1) % colors.length;
-        const newColor = colors[colorChangeIndex];
-        core.material.color.setHex(newColor.color);
-        core.material.emissive.setHex(newColor.emissive);
-        magicLight.color.setHex(newColor.emissive);
-        glowSphere.material.color.setHex(newColor.emissive);
-        particles.forEach(p => p.material.color.setHex(newColor.emissive));
+        setStoneColor(colorChangeIndex);
         onEvent('stoneColorChanged', { colorIndex: colorChangeIndex });
       }
     }
@@ -193,6 +205,8 @@ export function createMysticStone({
       const flicker = 0.8 + 0.2 * Math.sin(elapsed * 2); // Slower flicker
       core.material.emissiveIntensity = glowIntensity * flicker;
       magicLight.intensity = glowIntensity * 1.5 * flicker; // Reduced intensity
+      stoneMat.emissiveIntensity = 0.28 + flicker * 0.24;
+      glowSphere.material.opacity = 0.14 + flicker * 0.1;
       
       // Update particles less frequently
       particles.forEach(p => {

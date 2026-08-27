@@ -1,4 +1,7 @@
+import { patchCheapMaterials } from './perf.js';
+
 export function createScene() {
+  patchCheapMaterials();
   const wrap = document.getElementById('canvas-wrap');
   const mobile = window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0 ||
@@ -22,14 +25,14 @@ export function createScene() {
   wrap.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x5b7086, 60, 240);
+  scene.fog = new THREE.Fog(0x5b7086, 80, 340);
 
   const baseFov = 55;
   const camera = new THREE.PerspectiveCamera(
     baseFov,
     window.innerWidth / window.innerHeight,
     0.5,
-    2000
+    2800
   );
   camera.position.set(0, 60, 140);
 
@@ -97,7 +100,7 @@ export function createScene() {
     nightAmt: { value: 0 }
   };
 
-  const skyGeo = new THREE.SphereGeometry(550, 16, 12); // Reduced segments for performance
+  const skyGeo = new THREE.SphereGeometry(720, 12, 8);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: Object.assign(skyUniforms, { offset: { value: 15 }, exponent: { value: 0.7 } }),
     vertexShader: `
@@ -135,25 +138,25 @@ export function createScene() {
 
   // sun / moon
   const moon = new THREE.Mesh(
-    new THREE.SphereGeometry(9, 16, 16),
+    new THREE.SphereGeometry(9, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xf3ecd9, fog: false })
   );
   scene.add(moon);
 
   const moonGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(14, 16, 16),
+    new THREE.SphereGeometry(14, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xf3ecd9, transparent: true, opacity: 0.18, fog: false })
   );
   scene.add(moonGlow);
 
   const sunMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(11, 16, 16),
+    new THREE.SphereGeometry(11, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xffdca0, fog: false, transparent: true })
   );
   scene.add(sunMesh);
 
   // stars
-  const n = 2600;
+  const n = 900;
   const starGeo = new THREE.BufferGeometry();
   const pos = new Float32Array(n * 3);
   const starColors = new Float32Array(n * 3);
@@ -190,7 +193,7 @@ export function createScene() {
     { color: 0xb388d9, size: 2.4, dist: 410 }
   ].forEach(planet => {
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(planet.size, 16, 16),
+      new THREE.SphereGeometry(planet.size, 8, 8),
       new THREE.MeshBasicMaterial({ color: planet.color, fog: false, transparent: true, opacity: 0 })
     );
     const theta = Math.random() * Math.PI * 2;

@@ -1,6 +1,6 @@
 // collectibles.js — gatherable items, fishing, journal/sketchbook UI
 
-export function createCollectibles(scene, terrainHeight) {
+export function createCollectibles(scene, terrainHeight, onEvent = () => {}) {
   const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   // ── item catalogue ──────────────────────────────────────────────────────
   const TYPES = [
@@ -113,7 +113,8 @@ export function createCollectibles(scene, terrainHeight) {
   }
 
   // ── fishing system ───────────────────────────────────────────────────────
-  const fishing = _buildFishing(TYPES, collected, showToast, scene, terrainHeight);
+  const hooks = { onEvent };
+  const fishing = _buildFishing(TYPES, collected, showToast, hooks);
 
   // ── journal toggle  (O key; J is used by the bounty list) ──────────────
   let journalOpen = false;
@@ -135,6 +136,11 @@ export function createCollectibles(scene, terrainHeight) {
     // animate uncollected items
     for (const item of items) {
       if (item.collected) continue;
+      const dx = playerPos.x - item.ox;
+      const dz = playerPos.z - item.oz;
+      const d2 = dx * dx + dz * dz;
+      item.grp.visible = d2 < 110 * 110;
+      if (!item.grp.visible) continue;
       const bob = Math.sin(t * 2.1 + item.seed) * 0.08;
       item.grp.position.y = terrainHeight(item.ox, item.oz) + 0.35 + bob;
       item.grp.rotation.y = t * 0.8 + item.seed;
@@ -163,13 +169,14 @@ gatherPrompt.textContent = _nearItem
 
   return {
     update,
+    setOnEvent(fn) { hooks.onEvent = fn; },
     get foundCount()  { return collected.size; },
     get totalCount()  { return TYPES.length; }
   };
 }
 
 // ── fishing sub-system ──────────────────────────────────────────────────────
-function _buildFishing(TYPES, collected, showToast) {
+function _buildFishing(TYPES, collected, showToast, hooks = { onEvent() {} }) {
   let active   = false;
   let progress = 0;
 
@@ -223,6 +230,7 @@ promptEl.textContent   = touchControls ? 'Fishing… (tap ACTION to stop)' : 'Fi
         collected.add(id);
         const td = TYPES.find(x => x.id === id);
         showToast(`You caught a ${td.label}!`);
+        if (hooks.onEvent) hooks.onEvent('fish', { id });
       }
     }
   }

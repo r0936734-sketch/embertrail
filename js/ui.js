@@ -160,7 +160,8 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, 
   mapToggle.addEventListener('click', () => toggleMap());
   mapBackdrop.addEventListener('click', () => toggleMap(false));
   window.addEventListener('keydown', event => {
-    if (event.key.toLowerCase() === 'm' && !event.repeat && !event.target.matches('input, textarea, select')) {
+    const typing = event.target instanceof Element && event.target.matches('input, textarea, select');
+    if (event.key.toLowerCase() === 'm' && !event.repeat && !typing) {
       event.preventDefault();
       toggleMap();
     }

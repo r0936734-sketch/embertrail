@@ -223,7 +223,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   walkUpperBody.position.y = walkHipY;
   walker.add(walkUpperBody);
 
-  const walkBody = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.85, 0.3), riderMat);
+  const walkBody = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.85, 0.36), riderMat);
   walkBody.position.set(0, 0.40, 0);
   walkUpperBody.add(walkBody);
   const walkPlacket = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.7, 0.022), shirtDetailMat);
@@ -232,11 +232,11 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const walkPocket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.13, 0.025), shirtDetailMat);
   walkPocket.position.set(-0.13, 0.5, 0.165);
   walkUpperBody.add(walkPocket);
-  const walkPack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.48, 0.18), packMat);
+  const walkPack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.2), packMat);
   walkPack.position.set(0, 0.45, -0.22);
   walkUpperBody.add(walkPack);
 
-  const walkHead = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), skinMat);
+  const walkHead = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), skinMat);
   walkHead.position.set(0, 1.05, 0);
   walkUpperBody.add(walkHead);
   [-0.07, 0.07].forEach(x => {
@@ -260,8 +260,8 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   walkUpperBody.add(walkHatBand);
 
   // arms — this is what the dismounted character was missing entirely
-  const walkArmL = makeArm(walkUpperBody, { x: -0.29, y: 0.70, z: 0 }, 0.30, 0.26, 0.14, riderMat, skinMat, 0.085);
-  const walkArmR = makeArm(walkUpperBody, { x: 0.29, y: 0.70, z: 0 }, 0.30, 0.26, 0.14, riderMat, skinMat, 0.085);
+  const walkArmL = makeArm(walkUpperBody, { x: -0.39, y: 0.70, z: 0 }, 0.40, 0.34, 0.17, riderMat, skinMat, 0.095);
+  const walkArmR = makeArm(walkUpperBody, { x: 0.39, y: 0.70, z: 0 }, 0.40, 0.34, 0.17, riderMat, skinMat, 0.095);
   [walkArmL, walkArmR].forEach(arm => {
     arm.shoulder.rotation.x = -0.05;
     arm.elbow.rotation.x = 0.08;
@@ -269,7 +269,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const walkBinoculars = makeBinoculars(walkUpperBody, [0, 1.08, 0.31]);
 
   // legs — now jointed at hip + knee instead of rotating a single box
-  const walkLegUpperLen = 0.42, walkLegLowerLen = 0.35, walkLegThickness = 0.16;
+  const walkLegUpperLen = 0.42, walkLegLowerLen = 0.35, walkLegThickness = 0.19;
   const walkLegL = makeLimb(walker, { x: -0.14, y: walkHipY, z: 0 }, walkLegUpperLen, walkLegLowerLen, walkLegThickness, riderMat, riderMat, { x: 0.16, y: 0.08, z: 0.26 }, darkMat);
   const walkLegR = makeLimb(walker, { x: 0.14, y: walkHipY, z: 0 }, walkLegUpperLen, walkLegLowerLen, walkLegThickness, riderMat, riderMat, { x: 0.16, y: 0.08, z: 0.26 }, darkMat);
 
@@ -318,6 +318,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   let cameraNeedsSnap = false;
   let indoorCameraBounds = null;
   let traversalPose = 'none';
+  let vehiclePose = 'none';
   let binocularsRaised = false;
   let archeryActive = false;
   let archeryDraw = 0;
@@ -341,6 +342,8 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
 
   function currentGaitName(abs) {
     if (sitting) return 'sitting';
+    if (vehiclePose === 'bike') return 'riding';
+    if (externalControl) return 'traversing';
     if (!mounted) return 'walking';
     if (rearing) return 'rearing';
     if (abs < 0.25) return 'idle';
@@ -798,6 +801,24 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     const ziplining = traversalPose === 'zipline';
     const usingBinoculars = binocularsRaised && traversalPose === 'none' && !archeryActive;
 
+    if (vehiclePose === 'bike') {
+      walkBinoculars.visible = false;
+      riderBinoculars.visible = false;
+      // The bike places the walker's origin below the seat, so the hips land
+      // on the saddle while the bent legs and arms form a riding posture.
+      walkUpperBody.position.y += ((walkHipY - 0.02) - walkUpperBody.position.y) * Math.min(1, dt * 14);
+      walkUpperBody.rotation.x += (0.32 - walkUpperBody.rotation.x) * Math.min(1, dt * 12);
+      walkUpperBody.rotation.y += (0 - walkUpperBody.rotation.y) * Math.min(1, dt * 12);
+      walkUpperBody.rotation.z += (0 - walkUpperBody.rotation.z) * Math.min(1, dt * 12);
+      poseArm(walkArmL, -1.15, 0.35, dt);
+      poseArm(walkArmR, -1.15, 0.35, dt);
+      walkLegL.hip.rotation.x += (-0.72 - walkLegL.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.hip.rotation.x += (-0.72 - walkLegR.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegL.knee.rotation.x += (1.05 - walkLegL.knee.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.knee.rotation.x += (1.05 - walkLegR.knee.rotation.x) * Math.min(1, dt * 12);
+      return;
+    }
+
     walkBinoculars.visible = usingBinoculars && !mounted;
     riderBinoculars.visible = usingBinoculars && mounted;
     if (climbing) {
@@ -980,6 +1001,18 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     setExternalControl(value) {
       externalControl = value;
       if (!value) { velocityY = 0; grounded = true; }
+    },
+    setVehiclePose(pose) {
+      vehiclePose = pose || 'none';
+      if (vehiclePose === 'bike') {
+        mounted = false;
+        sitting = false;
+        riderGroup.visible = false;
+        walker.visible = true;
+      }
+    },
+    setExternalSpeed(value) {
+      if (externalControl) speed = value;
     },
     setGroundHeightFn(fn) { groundHeightFn = fn || terrainHeight; },
     teleportWalker(x, y, z, headingY) {

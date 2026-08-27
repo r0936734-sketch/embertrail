@@ -1,24 +1,10 @@
 export function createWeather(scene) {
   const mobile = (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ||
     (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  // ---------- rain ----------
-  const rainCount = mobile ? 720 : 1800;
-  const rainGeo = new THREE.BufferGeometry();
-  const rainPos = new Float32Array(rainCount * 3);
-  const rainSeed = new Float32Array(rainCount);
-  const spread = 90;
-  for (let i = 0; i < rainCount; i++) {
-    rainPos[i * 3]     = (Math.random() - 0.5) * spread;
-    rainPos[i * 3 + 1] = Math.random() * 40;
-    rainPos[i * 3 + 2] = (Math.random() - 0.5) * spread;
-    rainSeed[i] = Math.random();
-  }
-  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-  const rainMat = new THREE.PointsMaterial({
-    color: 0xaacbe0, size: 0.16, transparent: true, opacity: 0, depthWrite: false, fog: false
-  });
-  const rainPoints = new THREE.Points(rainGeo, rainMat);
-  scene.add(rainPoints);
+  // Falling sky particles are deliberately disabled. They required frequent
+  // buffer uploads (rain, snow, petals and leaves) and were a recurring
+  // source of frame drops on integrated/mobile GPUs. Rain still affects fog,
+  // lightning, ambience and the Flame Tower gameplay state.
 
   // ---------- lightning ----------
   const lightningGeo = new THREE.BufferGeometry();
@@ -58,7 +44,6 @@ export function createWeather(scene) {
   let lightningTimer = mobile ? 16 + Math.random() * 18 : 9 + Math.random() * 15;
   let lightningFlash = 0;
   let lightningCount = 0;
-  let rainFrame = 0;
 
   function strikeLightning(playerPos) {
     const x = playerPos.x + (Math.random() - 0.5) * 100;
@@ -103,7 +88,6 @@ export function createWeather(scene) {
 
     const target = state === 'rain' ? 1 : 0;
     rainAmt += (target - rainAmt) * Math.min(1, dt * 0.6);
-    rainMat.opacity = rainAmt * 0.6;
 
     // A rainy season can build into an occasional storm. The bolt and broad
     // light flash make it visible even when the actual zig-zag is behind fog.
@@ -125,23 +109,9 @@ export function createWeather(scene) {
       weatherText.textContent = lightningFlash > 0 ? '⛈ Thunderstorm' : rainySeason ? '🌧 Rainy Season' : '🌦 Rain Shower';
     }
 
-    // follow player, animate fall
-    rainPoints.position.x = playerPos.x;
-    rainPoints.position.z = playerPos.z;
-    // Rain is spatially attached to the player, so updating it at 30Hz on
-    // touch devices is visually equivalent while halving buffer writes.
-    if (rainAmt > 0.02 && (!mobile || !(++rainFrame & 1))) {
-      for (let i = 0; i < rainCount; i++) {
-        const iy = i * 3 + 1;
-        rainPos[iy] -= dt * (22 + rainSeed[i] * 6);
-        if (rainPos[iy] < -2) rainPos[iy] = 38 + Math.random() * 6;
-      }
-      rainGeo.attributes.position.needsUpdate = true;
-    }
-
     // fog thickens with rain
     if (scene.fog) {
-      const baseNear = 55, baseFar = 280;
+      const baseNear = 80, baseFar = 340;
       scene.fog.near = THREE.MathUtils.lerp(baseNear, 22, rainAmt);
       scene.fog.far = THREE.MathUtils.lerp(baseFar, 130, rainAmt);
     }

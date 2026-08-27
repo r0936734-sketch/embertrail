@@ -55,16 +55,22 @@
 //   //   mandir.update(dt, elapsed, player.group.position);
 // ============================================================================
 
+// Resolve from this module rather than the browser's current page. This works
+// both from the project root and Capacitor's generated www/ directory.
 const assetUrl = file => new URL(`../${file}`, import.meta.url).href;
 const IMG_HANUMAN     = assetUrl('hanumanji.jpg');
 const IMG_GANESH      = assetUrl('ganeshji.jpg');
 const IMG_PRASANNADAS = assetUrl('prashanndasji.jpg');
 
+// A broad, flat site inside the mountain ring, away from the cabin, ruins,
+// Skywatch, and Farshot. The old south-east site sat among near mountains.
 export const MANDIR_ORIGIN = { x: 160, z: -160 };
 
 export function mandirFootprintT(x, z) {
   const dx = Math.abs(x - MANDIR_ORIGIN.x);
   const dz = Math.abs(z - MANDIR_ORIGIN.z);
+  // Include a generous apron around the compound so all of its walls, gate,
+  // sacred trees, and approach stand on one level plaza.
   const tx = 1 - Math.min(1, Math.max(0, (dx - 24) / 12));
   const tz = 1 - Math.min(1, Math.max(0, (dz - 23) / 12));
   return tx * tz;
@@ -135,6 +141,8 @@ export function createMandir(scene, terrainHeight, collision, options = {}) {
     const maxTextWidth = pxW * 0.84;
     const makeFont = (size, primary) =>
       `${primary ? '700 ' : '600 '}${size}px "Noto Sans Devanagari","Mangal","Nirmala UI","Arial Unicode MS",sans-serif`;
+    // Long Devanagari names used to overflow their canvas and be visibly cut
+    // off. Measure every row and reduce only that row until it fits.
     const rows = lines.map((line, i) => {
       let size = i === 0 ? fontMain : fontSub;
       const primary = i === 0;
@@ -165,15 +173,23 @@ export function createMandir(scene, terrainHeight, collision, options = {}) {
   function makeIdolFrame(src, w, h) {
     const g = new THREE.Group();
     const photoMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false });
-    const tex = photoLoader.load(src, loaded => {
-      if ('colorSpace' in loaded && THREE.SRGBColorSpace) loaded.colorSpace = THREE.SRGBColorSpace;
-      else if ('encoding' in loaded) loaded.encoding = THREE.sRGBEncoding;
-      photoMat.map = loaded;
-      photoMat.needsUpdate = true;
-    }, undefined, () => {
-      photoMat.color.setHex(0x8a2418);
-      console.warn(`Mandir portrait could not load: ${src}`);
-    });
+    const tex = photoLoader.load(
+      src,
+      loaded => {
+        if ('colorSpace' in loaded && THREE.SRGBColorSpace) loaded.colorSpace = THREE.SRGBColorSpace;
+        else if ('encoding' in loaded) loaded.encoding = THREE.sRGBEncoding;
+        photoMat.map = loaded;
+        photoMat.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        // Preserve a visible framed panel if an install is missing an asset.
+        photoMat.color.setHex(0x8a2418);
+        console.warn(`Mandir portrait could not load: ${src}`);
+      }
+    );
+    // TextureLoader completes synchronously only from cache; apply color-space
+    // here as well for that case.
     if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
     else if ('encoding' in tex) tex.encoding = THREE.sRGBEncoding;
     const photo = new THREE.Mesh(
@@ -560,6 +576,8 @@ export function createMandir(scene, terrainHeight, collision, options = {}) {
     // idol
     if (kind === 'photo') {
       const idol = makeIdolFrame(image, Math.min(w, d) * 0.62, wallH * 0.6);
+      // The inner surface of the back wall is at -d/2 + WALL_T/2. The old
+      // 0.09 offset embedded the picture inside the wall, hiding every idol.
       idol.position.set(0, plinthH + wallH * 0.55, -d / 2 + WALL_T / 2 + 0.035);
       g.add(idol);
       makeDiya(-w * 0.26, plinthH + 0.06, d * 0.1, g);
@@ -722,6 +740,8 @@ export function createMandir(scene, terrainHeight, collision, options = {}) {
     trunk.position.y = 0.4 + trunkHeight / 2;
     g.add(trunk);
 
+    // A bargad has several supporting trunks and exposed roots; these static
+    // low-poly forms make it feel old and broad without an animated system.
     if (banyan) {
       const supportOffsets = [[-1.15, 0.35], [1.05, 0.55], [-0.55, -1.05], [0.75, -0.95]];
       supportOffsets.forEach(([x, z], i) => {
@@ -768,6 +788,7 @@ export function createMandir(scene, terrainHeight, collision, options = {}) {
       g.add(root2);
     });
 
+    // Small static offerings add life to the chabutra while staying cheap.
     [-0.8, 0, 0.8].forEach((x, i) => {
       const offering = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.1, 8), i === 1 ? goldMat : wallTrimMat);
       offering.position.set(x, 0.52, platformRadius - 0.72);

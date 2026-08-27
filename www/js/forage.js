@@ -4,9 +4,9 @@
 export function createForage({ scene, terrainHeight, inventory, onEvent = () => {} }) {
    const touchControls = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   const KINDS = {
-    branch:  { color: 0x6a4a2a, label: '🪵 Branch',  count: 26, yOff: 0.18, spin: 0.6 },
-    feather: { color: 0xe4dccb, label: '🪶 Feather', count: 16, yOff: 0.28, spin: 1.4 },
-    herb:    { color: 0x5f9a48, label: '🌿 Herb',    count: 14, yOff: 0.22, spin: 0.9 }
+    branch:  { color: 0x6a4a2a, label: '🪵 Branch',  count: 18, yOff: 0.18, spin: 0.6 },
+    feather: { color: 0xe4dccb, label: '🪶 Feather', count: 12, yOff: 0.28, spin: 1.4 },
+    herb:    { color: 0x5f9a48, label: '🌿 Herb',    count: 12, yOff: 0.22, spin: 0.9 }
   };
 
   const mats = {};
@@ -81,7 +81,7 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
   Object.entries(KINDS).forEach(([kind, cfg]) => {
     for (let i = 0; i < cfg.count; i++) {
       const a = Math.random() * Math.PI * 2;
-      const r = 16 + Math.random() * 96;
+      const r = 16 + Math.random() * 240;
       const x = Math.cos(a) * r;
       const z = Math.sin(a) * r;
 
@@ -139,32 +139,34 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
     let nearestD = 3.15;
 
     for (const n of nodes) {
-      // respawn countdown
       if (n.taken > 0) {
         n.taken -= t;
         if (n.taken <= 0) {
           n.mesh.visible = true;
-          n.mesh.scale.setScalar(0.01); // pop-in
+          n.mesh.scale.setScalar(0.01);
           n.pulse = 0.55;
         }
         continue;
       }
 
-      // gentle float + slow spin
-      const bob = Math.sin(performance.now() * 0.0018 + n.phase) * 0.045;
-      n.mesh.position.y = terrainHeight(n.x, n.z) + n.baseY + bob;
-      n.mesh.rotation.y += n.spinSpeed * t * 0.35;
+      const d = Math.hypot(playerPos.x - n.x, playerPos.z - n.z);
+      n.mesh.visible = d < 90;
+      if (!n.mesh.visible) continue;
 
-      // gather pop animation
+      if (d < 28) {
+        const bob = Math.sin(performance.now() * 0.0018 + n.phase) * 0.045;
+        n.mesh.position.y = terrainHeight(n.x, n.z) + n.baseY + bob;
+        n.mesh.rotation.y += n.spinSpeed * t * 0.35;
+      }
+
       if (n.pulse > 0) {
         n.pulse -= t;
         const s = 0.85 + Math.sin((1 - Math.max(0, n.pulse) / 0.55) * Math.PI) * 0.25;
         n.mesh.scale.setScalar(Math.max(0.01, s));
-      } else {
+      } else if (d >= nearestD) {
         n.mesh.scale.setScalar(1);
       }
 
-      const d = Math.hypot(playerPos.x - n.x, playerPos.z - n.z);
       if (d < nearestD) {
         nearestD = d;
         nearest = n;
@@ -172,15 +174,11 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
     }
 
     if (nearest) {
-      // highlight nearest a bit
       if (lastNearest !== nearest) {
-        if (lastNearest && lastNearest.mesh.visible) {
-          lastNearest.mesh.scale.setScalar(1);
-        }
+        if (lastNearest && lastNearest.mesh.visible) lastNearest.mesh.scale.setScalar(1);
         lastNearest = nearest;
       }
       nearest.mesh.scale.setScalar(1.12 + Math.sin(performance.now() * 0.006) * 0.04);
-
       prompt.textContent = touchControls
         ? `Tap ACTION to gather ${KINDS[nearest.kind].label}`
         : `G · gather ${KINDS[nearest.kind].label}`;
@@ -196,9 +194,7 @@ export function createForage({ scene, terrainHeight, inventory, onEvent = () => 
       }
       prevG = g;
     } else {
-      if (lastNearest && lastNearest.mesh.visible) {
-        lastNearest.mesh.scale.setScalar(1);
-      }
+      if (lastNearest && lastNearest.mesh.visible) lastNearest.mesh.scale.setScalar(1);
       lastNearest = null;
       prompt.style.opacity = '0';
       prevG = !!keys['g'];

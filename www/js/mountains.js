@@ -1,8 +1,3 @@
-// js/mountains.js
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
-// Note: if you prefer the global THREE from the script tag, remove the import
-// and use the global THREE object instead.
-
 import { MANDIR_ORIGIN } from './mandir.js';
 import { RANGE_ORIGIN } from './range.js';
 
@@ -36,8 +31,8 @@ export function createMountains(scene) {
   const snowShad  = new THREE.Color(0xcfe6f2);
 
   function makePeakGeo(r, h, segs) {
-    const heightSegs = 6 + Math.floor(Math.random() * 3);
-    const geo = new THREE.ConeGeometry(r, h, segs, heightSegs, false);
+    const heightSegs = 4;
+    const geo = new THREE.ConeGeometry(r, h, Math.min(segs, 8), heightSegs, false);
     const pa = geo.attributes.position;
     const colors = new Float32Array(pa.count * 3);
     const tmp = new THREE.Color();
@@ -117,12 +112,14 @@ export function createMountains(scene) {
 
   // ---------- near range ----------
   const nearGroup = new THREE.Group();
-  const mCount = 34;
+  const mCount = 16;
   for (let i = 0; i < mCount; i++) {
     const ang = (i / mCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.12;
-    const rad = 230 + Math.random() * 45;
+    const rad = 310 + Math.random() * 50;
     const x = Math.cos(ang) * rad;
     const z = Math.sin(ang) * rad;
+    // Mountain clusters have wide bases, so leave generous clear zones around
+    // both dedicated activity areas instead of only avoiding their centres.
     if (Math.hypot(x - MANDIR_ORIGIN.x, z - MANDIR_ORIGIN.z) < 118) continue;
     if (Math.hypot(x - RANGE_ORIGIN.x, z - RANGE_ORIGIN.z) < 150) continue;
     nearGroup.add(makeMountain(x, z, 0.9 + Math.random() * 0.8));
@@ -131,9 +128,9 @@ export function createMountains(scene) {
 
   // ---------- mid range ----------
   const midGroup = new THREE.Group();
-  for (let i = 0; i < 30; i++) {
-    const ang = (i / 30) * Math.PI * 2 + Math.random() * 0.25;
-    const rad = 310 + Math.random() * 55;
+  for (let i = 0; i < 14; i++) {
+    const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.25;
+    const rad = 420 + Math.random() * 55;
     const h = 80 + Math.random() * 70;
     const r = 30 + Math.random() * 26;
     const geo = new THREE.ConeGeometry(r, h, 8 + Math.floor(Math.random() * 2), 1);
@@ -152,9 +149,9 @@ export function createMountains(scene) {
 
   // ---------- far hazy range ----------
   const farGroup = new THREE.Group();
-  for (let i = 0; i < 38; i++) {
-    const ang = (i / 38) * Math.PI * 2 + Math.random() * 0.2;
-    const rad = 420 + Math.random() * 100;
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2 + Math.random() * 0.2;
+    const rad = 560 + Math.random() * 80;
     const h = 75 + Math.random() * 75;
     const r = 38 + Math.random() * 32;
     const geo = new THREE.ConeGeometry(r, h, 6, 1);
@@ -166,14 +163,16 @@ export function createMountains(scene) {
 
   // ---------- climate update helper ----------
   // Called every frame from climate.js
+  const _near = new THREE.Color();
+  const _mid = new THREE.Color();
+  const _far = new THREE.Color();
   function updateMountainClimate(palette, snowAmount) {
-    // near mountains – lerp toward season rock color + snow
-    const targetNear = new THREE.Color(palette.near);
-    nearMat.color.lerp(targetNear, 0.04);
-
-    // mid & far
-    midMat.color.lerp(new THREE.Color(palette.mid), 0.04);
-    farMat.color.lerp(new THREE.Color(palette.far), 0.04);
+    _near.set(palette.near);
+    _mid.set(palette.mid);
+    _far.set(palette.far);
+    nearMat.color.lerp(_near, 0.04);
+    midMat.color.lerp(_mid, 0.04);
+    farMat.color.lerp(_far, 0.04);
     farMat.opacity = 0.45 + snowAmount * 0.15;
   }
 
