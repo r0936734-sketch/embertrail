@@ -589,12 +589,14 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       }
 
       // ---- walk cycle: hips, knees, arms, torso lean & bob ----
+      const sprinting = !!keys['shift'] && acc > 0;
+      const sprintBlend = sprinting ? THREE.MathUtils.clamp((Math.abs(speed) - 2.2) / 3.5, 0, 1) : 0;
       const moveFactor = THREE.MathUtils.clamp(Math.abs(speed) / 1.6, 0, 1);
-      walkPhase += dt * (3.6 + Math.abs(speed) * 3.0);
+      walkPhase += dt * (3.6 + Math.abs(speed) * 3.0 + sprintBlend * 2.8);
 
-      const legAmpTarget = moveFactor * 0.5;
+      const legAmpTarget = moveFactor * THREE.MathUtils.lerp(0.5, 0.64, sprintBlend);
       walkLegAmp += (legAmpTarget - walkLegAmp) * Math.min(1, dt * 8);
-      const kneeAmpTarget = moveFactor * 0.85;
+      const kneeAmpTarget = moveFactor * THREE.MathUtils.lerp(0.85, 1.12, sprintBlend);
       walkKneeAmp += (kneeAmpTarget - walkKneeAmp) * Math.min(1, dt * 8);
 
       const phaseL = walkPhase;
@@ -611,8 +613,9 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walkLegR.knee.rotation.x += (kneeAngleR - walkLegR.knee.rotation.x) * Math.min(1, dt * 12);
 
       // arms swing opposite the same-side leg, like a natural stride
-      const armAngleL = Math.sin(phaseR) * walkLegAmp * 0.8 - 0.05;
-      const armAngleR = Math.sin(phaseL) * walkLegAmp * 0.8 - 0.05;
+      const armSwing = THREE.MathUtils.lerp(0.8, 1.05, sprintBlend);
+      const armAngleL = Math.sin(phaseR) * walkLegAmp * armSwing - 0.05;
+      const armAngleR = Math.sin(phaseL) * walkLegAmp * armSwing - 0.05;
       walkArmL.shoulder.rotation.x += (armAngleL - walkArmL.shoulder.rotation.x) * Math.min(1, dt * 12);
       walkArmR.shoulder.rotation.x += (armAngleR - walkArmR.shoulder.rotation.x) * Math.min(1, dt * 12);
       const elbowBendTarget = 0.08 + walkLegAmp * 0.35;
@@ -620,7 +623,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walkArmR.elbow.rotation.x += (elbowBendTarget - walkArmR.elbow.rotation.x) * Math.min(1, dt * 10);
 
       // torso bob (double-frequency, one bounce per footstep) + turning lean
-      const bobTarget = Math.abs(Math.sin(walkPhase)) * 0.06 * moveFactor;
+      const bobTarget = Math.abs(Math.sin(walkPhase)) * THREE.MathUtils.lerp(0.06, 0.085, sprintBlend) * moveFactor;
       walkBob += (bobTarget - walkBob) * Math.min(1, dt * 10);
       const idleSway = Math.sin(idleTime * 1.1) * 0.01 * (1 - moveFactor);
       walkUpperBody.position.y = walkHipY + walkBob + idleSway;
@@ -629,7 +632,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       walkLean += (leanTarget - walkLean) * Math.min(1, dt * 6);
       walkUpperBody.rotation.z = walkLean;
 
-      const forwardLeanTarget = moveFactor * 0.06;
+      const forwardLeanTarget = moveFactor * THREE.MathUtils.lerp(0.06, 0.14, sprintBlend);
       walkForwardLean += (forwardLeanTarget - walkForwardLean) * Math.min(1, dt * 6);
       walkUpperBody.rotation.x = walkForwardLean;
 

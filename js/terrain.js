@@ -1,5 +1,7 @@
 import { RANGE_ORIGIN, rangeCorridorT } from './range.js';
 import { MANDIR_ORIGIN, mandirFootprintT } from './mandir.js';
+import { STUNT_ORIGIN, STUNT_PAD_OFFSET, stuntBaseY, stuntCorridorT } from './stunt.js';
+import { FARM_ORIGIN, farmFootprintT } from './farm.js';
 
 export function createTerrain(scene) {
 
@@ -60,8 +62,15 @@ export function createTerrain(scene) {
   const vistaCenter = { x: 95, z: -72 };
   const vistaRadius = 22;
   const vistaHeight = 34;
+  const duneSites = [
+    { x: -212, z: -42, r: 34, h: 14 }, { x: 188, z: 94, r: 38, h: 16 },
+    { x: -88, z: -205, r: 32, h: 13 }, { x: 172, z: -178, r: 36, h: 15 },
+    { x: -248, z: 168, r: 30, h: 12 }, { x: 232, z: -152, r: 31, h: 13 },
+    { x: -18, z: -258, r: 35, h: 15 }, { x: 252, z: 54, r: 29, h: 11 },
+    { x: -260, z: -176, r: 33, h: 14 }, { x: 118, z: 236, r: 32, h: 12 }
+  ];
 
-  function terrainHeight(x, z) {
+  function rawTerrainHeight(x, z) {
     const d = Math.sqrt(x * x + z * z);
     const flatten = Math.min(1, Math.max(0, (d - 14) / 22));
     let h = noise2D(x, z) * flatten;
@@ -79,6 +88,14 @@ export function createTerrain(scene) {
     const smooth = vt * vt * (3 - 2 * vt);
     h = h + (vistaHeight - h) * smooth;
 
+    // Several smaller Sunveil-style dune ridges give bikes natural crests to
+    // jump without adding meshes or a per-frame physics system.
+    for (const dune of duneSites) {
+      const t = 1 - THREE.MathUtils.clamp(Math.hypot(x - dune.x, z - dune.z) / dune.r, 0, 1);
+      const duneBlend = t * t * (3 - 2 * t);
+      h += (dune.h - h) * duneBlend;
+    }
+
     // Flatten Farshot so arrows fly a true 90m lane instead of burying in a hill.
     const rt = rangeCorridorT(x, z);
     if (rt > 0) {
@@ -89,6 +106,24 @@ export function createTerrain(scene) {
     if (mt > 0) {
       const pad = mt * mt * (3 - 2 * mt);
       h = h + (2.05 - h) * pad;
+    }
+    return h;
+  }
+
+  const stuntPadY = stuntBaseY(rawTerrainHeight) + STUNT_PAD_OFFSET;
+  const farmPadY = rawTerrainHeight(FARM_ORIGIN.x, FARM_ORIGIN.z);
+
+  function terrainHeight(x, z) {
+    let h = rawTerrainHeight(x, z);
+    const st = stuntCorridorT(x, z);
+    if (st > 0) {
+      const pad = st * st * (3 - 2 * st);
+      h = h + (stuntPadY - h) * pad;
+    }
+    const ft = farmFootprintT(x, z);
+    if (ft > 0) {
+      const pad = ft * ft * (3 - 2 * ft);
+      h = h + (farmPadY - h) * pad;
     }
     return h;
   }
@@ -137,7 +172,7 @@ export function createTerrain(scene) {
     { x: 60, z: -36 }, { x: 48, z: 28 }, { x: 52, z: 36 }, { x: -62, z: -48 }, { x: -80, z: -55 },
     { x: -148, z: 48 }, { x: 38, z: 178 }, { x: -188, z: 132 }, { x: 168, z: 148 },
     { x: 214, z: -52 }, { x: 52, z: -188 }, { x: -176, z: -128 },
-    RANGE_ORIGIN, MANDIR_ORIGIN
+    RANGE_ORIGIN, MANDIR_ORIGIN, STUNT_ORIGIN
   ];
   const pathSegments = [
     [pathHubs[0], pathHubs[1]], [pathHubs[0], pathHubs[2]], [pathHubs[2], pathHubs[3]],
@@ -244,5 +279,6 @@ export function createTerrain(scene) {
     vistaCenter,
     vistaRadius,
     vistaHeight
+    , duneSites
   };
 }

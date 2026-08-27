@@ -6,7 +6,10 @@ export function createScene() {
   const mobile = window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  const maxPixelRatio = mobile ? 1.0 : 1.25;
+  // A 1.0 cap combined with the old 0.62–0.92 quality scales made high-DPI
+  // phones look noticeably softer than the desktop build.  1.35 is a useful
+  // clarity lift without paying for a full native-DPR render.
+  const maxPixelRatio = mobile ? 1.35 : 1.25;
   const renderer = new THREE.WebGLRenderer({
     antialias: false,
     alpha: false,
@@ -45,7 +48,7 @@ export function createScene() {
   // A small, hysteretic quality controller keeps fill-rate reasonable on phones
   // while allowing faster devices to recover. It only changes render resolution;
   // gameplay and module APIs remain untouched.
-  let renderScale = mobile ? 0.85 : 1;
+  let renderScale = mobile ? 0.96 : 1;
   let qualityLevel = mobile ? 1 : 2;
   let smoothFps = 60;
   let lastAdjustment = 0;
@@ -55,12 +58,14 @@ export function createScene() {
     getRenderScale: () => renderScale,
     getFps: () => smoothFps,
     setRenderScale(scale) {
-      renderScale = THREE.MathUtils.clamp(Number(scale) || 1, 0.55, 1);
+      renderScale = THREE.MathUtils.clamp(Number(scale) || 1, 0.72, 1);
       renderer.setPixelRatio(devicePixelRatio * renderScale);
     },
     setQuality(level) {
       qualityLevel = THREE.MathUtils.clamp(Math.round(level), 0, 2);
-      const scales = mobile ? [0.62, 0.78, 0.92] : [0.72, 0.88, 1];
+      // The low level remains affordable, but no longer drops to a visibly
+      // pixelated "240p"-like image on a normal phone display.
+      const scales = mobile ? [0.78, 0.90, 1] : [0.72, 0.88, 1];
       const nextScale = scales[qualityLevel];
       if (nextScale === renderScale) return;
       this.setRenderScale(nextScale);

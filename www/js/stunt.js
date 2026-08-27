@@ -40,6 +40,48 @@
 // ---------------------------------------------------------------------
 
 export const STUNT_ORIGIN = { x: -80, z: 260 };
+export const STUNT_ROTATION = 0;
+export const STUNT_PAD_OFFSET = 0.6;
+
+const STUNT_RAMP_Z0 = -30;
+const STUNT_LANDING_Z1 = 140;
+// This includes a small shoulder around the 20m-wide asphalt.  Keeping the
+// terrain flat beyond the visible edge avoids grass clipping through it and
+// gives the bike a safe recovery area after an imperfect landing.
+const STUNT_HALF_WIDTH = 14;
+
+function stuntToLocal(x, z, position = STUNT_ORIGIN, rotationY = STUNT_ROTATION) {
+  const dx = x - position.x, dz = z - position.z;
+  const cos = Math.cos(-rotationY), sin = Math.sin(-rotationY);
+  return { lx: dx * cos - dz * sin, lz: dx * sin + dz * cos };
+}
+
+export function stuntCorridorT(x, z, position = STUNT_ORIGIN, rotationY = STUNT_ROTATION) {
+  const { lx, lz } = stuntToLocal(x, z, position, rotationY);
+  const edge = (value, min, max, fade) => {
+    if (value < min) return 1 - Math.min(1, (min - value) / fade);
+    if (value > max) return 1 - Math.min(1, (value - max) / fade);
+    return 1;
+  };
+  const along = edge(lz, STUNT_RAMP_Z0 - 14, STUNT_LANDING_Z1, 8);
+  const across = edge(Math.abs(lx), STUNT_HALF_WIDTH, STUNT_HALF_WIDTH, 4);
+  return Math.max(0, Math.min(1, along * across));
+}
+
+export function stuntBaseY(terrainHeight, position = STUNT_ORIGIN, rotationY = STUNT_ROTATION) {
+  const toWorld = (lx, lz) => ({
+    x: position.x + lx * Math.cos(rotationY) + lz * Math.sin(rotationY),
+    z: position.z - lx * Math.sin(rotationY) + lz * Math.cos(rotationY)
+  });
+  let baseY = terrainHeight(position.x, position.z);
+  for (let sx = -45; sx <= 45; sx += 15) {
+    for (let sz = -45; sz <= 150; sz += 15) {
+      const sample = toWorld(sx, sz);
+      baseY = Math.min(baseY, terrainHeight(sample.x, sample.z));
+    }
+  }
+  return baseY;
+}
 
 export function createStunt(scene, terrainHeight, collision, options = {}) {
   const position  = options.position  || STUNT_ORIGIN;
@@ -48,13 +90,10 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
 
   const px = position.x;
   const pz = position.z;
-  let baseY = terrainHeight(px, pz);
-  for (let sx = -45; sx <= 45; sx += 15) {
-    for (let sz = -45; sz <= 150; sz += 15) {
-      baseY = Math.min(baseY, terrainHeight(px + sx, pz + sz));
-    }
-  }
-  baseY += 0.08;
+  // terrain.js has already flattened this corridor to its stunt pad height.
+  // Do not search surrounding (unflattened) hills here: a low sample outside
+  // the pad would drag the complete arena underground.
+  const baseY = terrainHeight(px, pz) + STUNT_PAD_OFFSET;
 
   const root = new THREE.Group();
   root.position.set(px, baseY, pz);
@@ -308,9 +347,7 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
   // GEOMETRY QUERIES USED BY THE BIKE
   // ─────────────────────────────────────────────────────────────────
   function toLocal(pos) {
-    const dx = pos.x - px, dz = pos.z - pz;
-    const cos = Math.cos(-rotationY), sin = Math.sin(-rotationY);
-    return { lx: dx * cos - dz * sin, lz: dx * sin + dz * cos };
+    return stuntToLocal(pos.x, pos.z, position, rotationY);
   }
 
   function projectToSegment(lx, lz, seg) {
@@ -360,21 +397,26 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
 
     const { lx, lz } = toLocal(pos);
     const p = projectToSegment(lx, lz, rampSeg);
-    if (p.dist > rampSeg.halfWidth || p.t < 0.72 || p.t > 1.12) return 0;
+    // Trigger at the lip, not halfway up the ramp. This makes entrance speed,
+    // line and timing matter instead of producing one repeatable jump length.
+    if (p.dist > rampSeg.halfWidth || p.t < 0.90 || p.t > 1.06) return 0;
 
     const forwardX = Math.sin(heading - rotationY);
     const forwardZ = Math.cos(heading - rotationY);
     const aligned = forwardX * p.dirX + forwardZ * p.dirZ;
-    if (aligned < 0.6) return 0;
+    if (aligned < 0.65) return 0;
 
     const rise = rampSeg.h1 - rampSeg.h0;
     const run = Math.hypot(rampSeg.x1 - rampSeg.x0, rampSeg.z1 - rampSeg.z0);
     const steepness = rise / run;
+    const speedSkill = THREE.MathUtils.smoothstep(speed, rampSeg.minSpeed, 28);
+    const alignmentSkill = THREE.MathUtils.smoothstep(aligned, 0.65, 1);
+    const lipSkill = THREE.MathUtils.smoothstep(p.tc, 0.90, 1);
 
     lastLaunch = elapsedLocal;
     airborne = { startX: pos.x, startZ: pos.z, startTime: elapsedLocal };
 
-    return rampSeg.impulseBase * (1 + steepness * 2) + Math.min(5, speed * rampSeg.impulseScale);
+    return 5.7 + steepness * 2.4 + speedSkill * 5.2 + alignmentSkill * 1.15 + lipSkill * 1.25;
   }
 
   // ─────────────────────────────────────────────────────────────────

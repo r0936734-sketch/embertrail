@@ -12,12 +12,43 @@ export function createAudio() {
   const rear = new Audio('rear.mp3');
   rear.preload = 'auto';
   rear.volume = 0.72;
+  const arrowShot = new Audio('arrow.mp3');
+  const ticWin = new Audio('ticwin.mp3');
+  arrowShot.preload = 'auto';
+  arrowShot.volume = 0.62;
+  ticWin.preload = 'auto';
+  ticWin.volume = 0.82;
+  const miraVoices = {
+    ask: new Audio('voices/miraask.m4a'),
+    characterNo: new Audio('voices/miracharno.m4a'),
+    characterYes: new Audio('voices/miracharyes.m4a'),
+    yes: new Audio('voices/mirayes.m4a')
+  };
+  const activityVoices = {
+    flameAsk: new Audio('voices/flameask.m4a'),
+    flameYes: new Audio('voices/flameyes.m4a'),
+    windmillAsk: new Audio('voices/windmillask.m4a'),
+    windmillYes: new Audio('voices/windmillyes.m4a'),
+    no: new Audio('voices/miracharno.m4a')
+  };
+  Object.values(miraVoices).forEach(voice => {
+    voice.preload = 'auto';
+    voice.volume = 0.9;
+  });
+  Object.values(activityVoices).forEach(voice => {
+    voice.preload = 'auto';
+    voice.volume = 0.9;
+  });
 
   return {
     bgm,
     hoofPool,
     hoofIdx: 0,
     rear,
+    arrowShot,
+    ticWin,
+    miraVoices,
+    activityVoices,
     started: false,
     muted: false,
     audioCtx: null
@@ -45,7 +76,71 @@ export function toggleMute(audio) {
   audio.bgm.muted = audio.muted;
   audio.hoofPool.forEach(a => (a.muted = audio.muted));
   audio.rear.muted = audio.muted;
+  audio.arrowShot.muted = audio.muted;
+  audio.ticWin.muted = audio.muted;
+  Object.values(audio.miraVoices).forEach(voice => { voice.muted = audio.muted; });
+  Object.values(audio.activityVoices).forEach(voice => { voice.muted = audio.muted; });
   updateSoundIcon(audio);
+}
+
+function playEffect(audio, effect) {
+  if (!audio.started || audio.muted) return;
+  effect.pause();
+  effect.currentTime = 0;
+  effect.play().catch(() => {});
+}
+
+export function playArrowShot(audio) {
+  playEffect(audio, audio.arrowShot);
+}
+
+export function playTicWin(audio) {
+  playEffect(audio, audio.ticWin);
+}
+
+export function playMiraVoice(audio, voiceName, onStart = () => {}, onFinish = () => {}) {
+  return playVoice(audio, audio.miraVoices, voiceName, onStart, onFinish);
+}
+
+export function playActivityVoice(audio, voiceName, onStart = () => {}, onFinish = () => {}) {
+  return playVoice(audio, audio.activityVoices, voiceName, onStart, onFinish);
+}
+
+function playVoice(audio, voices, voiceName, onStart, onFinish) {
+  if (!audio.started || audio.muted) {
+    onFinish(false);
+    return Promise.resolve(false);
+  }
+  const voice = voices[voiceName];
+  if (!voice) {
+    onFinish(false);
+    return Promise.resolve(false);
+  }
+  const allVoices = [...Object.values(audio.miraVoices), ...Object.values(audio.activityVoices)];
+  allVoices.forEach(other => {
+    if (other !== voice) other.pause();
+  });
+  voice.pause();
+  voice.currentTime = 0;
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = played => {
+      if (settled) return;
+      settled = true;
+      voice.removeEventListener('ended', onEnded);
+      voice.removeEventListener('error', onError);
+      clearTimeout(timeout);
+      onFinish(played);
+      resolve(played);
+    };
+    const onEnded = () => finish(true);
+    const onError = () => finish(false);
+    const timeout = setTimeout(() => finish(true), 30000);
+    voice.addEventListener('ended', onEnded, { once: true });
+    voice.addEventListener('error', onError, { once: true });
+    onStart();
+    voice.play().catch(() => finish(false));
+  });
 }
 
 function updateSoundIcon(audio) {

@@ -28,6 +28,8 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
   const roadDistance = options.roadDistance || (() => Infinity);
   const jumpProvider = options.jumpProvider || (() => 0);
   const surfaceProvider = options.surfaceProvider || (() => null);
+  const getAudioContext = options.getAudioContext || (() => null);
+  const isMuted = options.isMuted || (() => false);
   // 100 km/h = 27.78 m/s — reach this on good trail/road
   const maxSpeedMps  = Math.max(1, (options.maxSpeedKmh ?? 100) / 3.6);
 
@@ -257,6 +259,24 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
 
   const bikeCollider = collision ? collision.addCollider(position.x, position.z, 0.7) : null;
 
+  // A short low-cost nitro flame. It is attached to the bike and hidden when
+  // idle, so it adds no ongoing particle-system cost on mobile.
+  const nitroFlame = new THREE.Group();
+  nitroFlame.position.set(0, 0.34, -1.14);
+  nitroFlame.rotation.x = -Math.PI / 2;
+  nitroFlame.visible = false;
+  const nitroOuter = new THREE.Mesh(
+    new THREE.ConeGeometry(0.20, 0.78, 6),
+    new THREE.MeshBasicMaterial({ color: 0x842bff, transparent: true, opacity: 0.76, depthWrite: false })
+  );
+  const nitroCore = new THREE.Mesh(
+    new THREE.ConeGeometry(0.095, 0.48, 5),
+    new THREE.MeshBasicMaterial({ color: 0xe1c4ff, transparent: true, opacity: 0.92, depthWrite: false })
+  );
+  nitroCore.position.y = -0.10;
+  nitroFlame.add(nitroOuter, nitroCore);
+  bikeGroup.add(nitroFlame);
+
   // ---------- mount prompt (E key) ----------
   const promptEl = document.createElement('div');
   Object.assign(promptEl.style, {
@@ -281,9 +301,10 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
   let starterOscillator = null;
 
   function startEngine() {
+    if (isMuted()) return;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
-    if (!audioContext) audioContext = new AudioContextClass();
+    if (!audioContext) audioContext = getAudioContext() || new AudioContextClass();
     if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
     if (engineOscillator) return;
 
@@ -364,8 +385,24 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
     engineOscillator.frequency.setTargetAtTime(frequency, now, 0.045);
     engineHarmonic.frequency.setTargetAtTime(frequency * 2.01, now, 0.045);
     engineFilter.frequency.setTargetAtTime(700 + t * 2200, now, 0.08);
-    engineGain.gain.setTargetAtTime(0.03 + t * 0.05, now, 0.08);
+    engineGain.gain.setTargetAtTime(isMuted() ? 0 : 0.03 + t * 0.05, now, 0.08);
     engineNoiseGain.gain.setTargetAtTime(0.00625 + t * 0.01375, now, 0.08);
+  }
+
+  function playNitroSound() {
+    if (!audioContext || isMuted()) return;
+    const now = audioContext.currentTime;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(62, now + 0.20);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.075, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.connect(gain).connect(audioContext.destination);
+    osc.start(now);
+    osc.stop(now + 0.23);
   }
 
   // ---------- dust ----------
@@ -393,6 +430,12 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
   let verticalVelocity = 0;
   let airborne = false;
   let jumpCooldown = 0;
+  let pitchX = 0;
+  let suspensionCompression = 0;
+  let nitroTimer = 0;
+  let nitroCooldown = 0;
+  const GRAVITY = 24;
+  const AIR_DRAG = 0.045;
   const _seatWorld = new THREE.Vector3();
 
   function nearBike(px, pz) {
@@ -404,6 +447,8 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
     speed = 0;
     verticalVelocity = 0;
     airborne = false;
+    pitchX = 0;
+    suspensionCompression = 0;
     heading = bikeGroup.rotation.y;
     player.setVehiclePose('bike');
     player.setExternalControl(true);
@@ -430,6 +475,16 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
     );
     stopEngine();
     onEvent('dismount');
+  }
+
+  function boost() {
+    if (!riding || nitroCooldown > 0) return false;
+    nitroTimer = 0.70;
+    nitroCooldown = 0.72;
+    speed = Math.min(maxSpeedMps + 7, speed + 4.5);
+    nitroFlame.visible = true;
+    playNitroSound();
+    return true;
   }
 
   function spawnDust() {
@@ -472,6 +527,16 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
 
     if (riding) {
       jumpCooldown = Math.max(0, jumpCooldown - dt);
+      nitroCooldown = Math.max(0, nitroCooldown - dt);
+      if (nitroTimer > 0) {
+        nitroTimer = Math.max(0, nitroTimer - dt);
+        speed = Math.min(maxSpeedMps + 7, speed + 34 * dt);
+        nitroFlame.visible = nitroTimer > 0;
+        const flameScale = 0.85 + Math.random() * 0.35;
+        nitroFlame.scale.set(flameScale, flameScale, flameScale);
+      } else {
+        nitroFlame.visible = false;
+      }
       let acc = 0;
       const joyDrive = Number(keys.joyForward) || 0;
       if (Math.abs(joyDrive) > 0.001) acc = joyDrive;
@@ -486,7 +551,9 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       // still improve acceleration and handling without making forward input
       // depend on Shift.
       const roadMax = maxSpeedMps;
-      const maxSpeed = maxSpeedMps;
+      // While nitro is burning, keep forward input from immediately clamping
+      // the boost back to the normal top speed.
+      const maxSpeed = nitroTimer > 0 ? maxSpeedMps + 7 : maxSpeedMps;
 
       if (acc > 0) {
         // Stronger accel so 0→100 feels like a real bike (~6–8 s on road)
@@ -555,25 +622,57 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       const terrainY = terrainHeight(bikeGroup.position.x, bikeGroup.position.z);
       const surfaceY = surfaceProvider(bikeGroup.position);
       const gy = surfaceY === null ? terrainY : Math.max(terrainY, surfaceY);
-      const aheadY = terrainHeight(
-        bikeGroup.position.x + Math.sin(heading) * 1.4,
-        bikeGroup.position.z + Math.cos(heading) * 1.4
-      );
-      speed -= ((aheadY - gy) / 1.4) * 4.8 * dt;
-      speed = THREE.MathUtils.clamp(speed, -4, roadMax);
+      const aheadPosition = {
+        x: bikeGroup.position.x + Math.sin(heading) * 1.4,
+        z: bikeGroup.position.z + Math.cos(heading) * 1.4
+      };
+      const aheadTerrainY = terrainHeight(aheadPosition.x, aheadPosition.z);
+      const aheadSurfaceY = surfaceProvider(aheadPosition);
+      const aheadY = aheadSurfaceY === null
+        ? aheadTerrainY
+        : Math.max(aheadTerrainY, aheadSurfaceY);
+      // Grade affects a tyre on the ground, not a bike that is already in
+      // flight.  This also prevents invisible terrain below a jump from
+      // accelerating or braking it in mid-air.
+      if (!airborne) speed -= ((aheadY - gy) / 1.4) * 4.8 * dt;
+      speed = THREE.MathUtils.clamp(speed, -4, nitroTimer > 0 ? maxSpeedMps + 7 : roadMax);
 
       if (airborne) {
         if (launchedThisFrame) bikeGroup.position.y = Math.max(bikeGroup.position.y, gy);
-        verticalVelocity -= 22 * dt;
+        // Semi-implicit gravity is stable at both 30 and 60 fps.  A very
+        // small drag makes long stunt jumps feel planted without changing
+        // their intended range.
+        verticalVelocity -= GRAVITY * dt;
+        speed *= Math.max(0, 1 - AIR_DRAG * dt);
         bikeGroup.position.y += verticalVelocity * dt;
         if (bikeGroup.position.y <= gy) {
+          const impactSpeed = Math.max(0, -verticalVelocity);
           bikeGroup.position.y = gy;
           verticalVelocity = 0;
           airborne = false;
+          suspensionCompression = Math.min(0.12, impactSpeed * 0.009);
+          // A hard landing costs some momentum, but never turns the bike
+          // into a dead stop on the landing field.
+          speed *= THREE.MathUtils.clamp(1 - Math.max(0, impactSpeed - 5) * 0.012, 0.78, 1);
         }
       } else {
         bikeGroup.position.y += (gy - bikeGroup.position.y) * Math.min(1, dt * 10);
       }
+
+      const behindPosition = {
+        x: bikeGroup.position.x - Math.sin(heading) * 1.4,
+        z: bikeGroup.position.z - Math.cos(heading) * 1.4
+      };
+      const behindTerrainY = terrainHeight(behindPosition.x, behindPosition.z);
+      const behindSurfaceY = surfaceProvider(behindPosition);
+      const behindY = behindSurfaceY === null
+        ? behindTerrainY
+        : Math.max(behindTerrainY, behindSurfaceY);
+      const groundPitch = -Math.atan2(aheadY - behindY, 2.8);
+      const flightPitch = THREE.MathUtils.clamp(-verticalVelocity * 0.035, -0.24, 0.34);
+      const targetPitch = airborne ? flightPitch : groundPitch;
+      pitchX += (targetPitch - pitchX) * Math.min(1, dt * (airborne ? 3.2 : 9));
+      bikeGroup.rotation.x = pitchX;
 
       const targetLean = THREE.MathUtils.clamp(-turn * speedFactor * 0.38, -0.42, 0.42);
       leanZ += (targetLean - leanZ) * Math.min(1, dt * 7);
@@ -584,7 +683,8 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       rearWheel.rotation.x += wheelSpin * dt;
 
       bobT += dt * (5 + speedFactor * 9);
-      chassis.position.y = Math.sin(bobT) * 0.007 * speedFactor;
+      suspensionCompression += (0 - suspensionCompression) * Math.min(1, dt * 12);
+      chassis.position.y = Math.sin(bobT) * 0.007 * speedFactor - suspensionCompression;
 
       kickAmt += (0 - kickAmt) * Math.min(1, dt * 8);
       kickstandPivot.rotation.z = kickAmt * 0.95;
@@ -615,10 +715,14 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       dustGeo.attributes.position.needsUpdate = true;
 
     } else {
+      nitroTimer = 0;
+      nitroFlame.visible = false;
       kickAmt += (1 - kickAmt) * Math.min(1, dt * 4);
       kickstandPivot.rotation.z = kickAmt * 0.95;
       leanZ += (0.14 - leanZ) * Math.min(1, dt * 3);
       bikeGroup.rotation.z = leanZ;
+      pitchX += (0 - pitchX) * Math.min(1, dt * 6);
+      bikeGroup.rotation.x = pitchX;
       chassis.position.y += (0 - chassis.position.y) * Math.min(1, dt * 4);
 
       if (bikeCollider) {
@@ -635,6 +739,7 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
     group: bikeGroup,
     get riding() { return riding; },
     get position() { return bikeGroup.position; },
-    get speed() { return speed; }
+    get speed() { return speed; },
+    boost
   };
 }

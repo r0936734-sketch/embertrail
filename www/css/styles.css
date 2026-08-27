@@ -352,6 +352,10 @@ canvas:active { cursor:grabbing; }
   touch-action:manipulation;
 }
 .mobile-zoom-btn { font-size:17px; line-height:1; }
+.gbtn.nitro-ready {
+  background:rgba(120,54,230,0.46); border-color:rgba(215,175,255,0.88);
+  box-shadow:0 0 16px rgba(154,76,255,0.44), 0 4px 18px rgba(0,0,0,0.25);
+}
 
 .binocular-view {
   position:fixed; inset:0; z-index:12; pointer-events:none; opacity:0; transition:opacity 0.18s ease;

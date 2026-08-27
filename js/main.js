@@ -1,4 +1,4 @@
-import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear } from './audio.js';
+import { createAudio, startAudio, toggleMute, playHoof, playWhistle, playRear, playMiraVoice, playActivityVoice, playArrowShot, playTicWin } from './audio.js';
 import { createScene } from './scene.js';
 import { createWindmill } from './windmill.js';
 import { createMysticStone } from './mysticStone.js';
@@ -35,6 +35,7 @@ import { createForage } from './forage.js';
 import { createQuests } from './quests.js';
 import { createWorld } from './world.js';
 import { createStunt, STUNT_ORIGIN } from './stunt.js';
+import { createFarm, FARM_ORIGIN } from './farm.js';
 
 (function () {
   'use strict';
@@ -163,13 +164,14 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     { name: 'Farshot Practice Range', x: RANGE_ORIGIN.x, z: RANGE_ORIGIN.z },
     { name: 'Shree Baba Prasannadas Ji Mandir', x: MANDIR_ORIGIN.x, z: MANDIR_ORIGIN.z },
     { name: 'Tic-Tac Arena', x: TIC_POS.x, z: TIC_POS.z },
+    { name: "Mira's Farm", x: FARM_ORIGIN.x, z: FARM_ORIGIN.z },
     { name: 'Home Garage', x: BIKE_POS.x, z: BIKE_POS.z }
   ];
   const binoculars = createBinoculars(binocularPois);
   const intro = createIntro(camera);
 
   // ---------- hunting / activities ----------
-  const inventory = createInventory(18);
+  const inventory = createInventory(100);
   const quests = createQuests({ inventory });
   let ui;
   const world = createWorld(scene, terrain.terrainHeight, collision, {
@@ -187,8 +189,44 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     terrainHeight: terrain.terrainHeight,
     inventory,
     getAimOffset: () => camYawOffset,
-    onEvent: (type, data) => quests.handleEvent(type, data)
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'shot') playArrowShot(audio);
+    }
   });
+
+  let flameTowerDone = false;
+  let windmillDone = false;
+  let flameAccepted = false;
+  let windmillAccepted = false;
+  let activityVoiceSequence = 0;
+  let activityVoiceActive = false;
+  const activityCaptions = {
+    flameAsk: 'Hey... it\'s been too long. The Flame Tower\'s gone dark. I topped it up with gasoline. One clean shot, one arrow, light it up.',
+    flameYes: 'Sure thing. Give me a second... and watch it light up.',
+    windmillAsk: 'We\'re running low on power. Shoot the windmill\'s center to break the chain and get it moving again.',
+    windmillYes: 'Got it. I\'ll take the shot.',
+    no: 'Nah, some other time.'
+  };
+
+  function playActivityLine(name) {
+    const sequence = ++activityVoiceSequence;
+    activityHint.textContent = activityCaptions[name] || '';
+    activityHint.style.display = 'block';
+    return playActivityVoice(
+      audio,
+      name,
+      () => {
+        activityVoiceActive = true;
+        if (sequence === activityVoiceSequence) activityHint.style.display = 'block';
+      },
+      () => {
+        if (sequence !== activityVoiceSequence) return;
+        activityVoiceActive = false;
+        activityHint.style.display = 'none';
+      }
+    );
+  }
 
   // Flame Tower requires archery for the beacon target registration.
   const flameTower = createFlameTower({
@@ -199,8 +237,14 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     position: FLAME_TOWER_POS,
     onEvent: (type, data) => {
       quests.handleEvent(type, data);
-      if (type === 'towerLit') quests.toast('🔥 The beacon roars to life!');
-      if (type === 'towerExtinguished') quests.toast('The rain has doused the flame tower.');
+      if (type === 'towerLit') {
+        flameTowerDone = true;
+        quests.toast('🔥 The beacon roars to life!');
+      }
+      if (type === 'towerExtinguished') {
+        flameTowerDone = false;
+        quests.toast('The rain has doused the flame tower.');
+      }
     }
   });
 
@@ -211,7 +255,10 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     archery,
     position: { x: 30, z: 55 },
     onEvent: (type, data) => {
-      if (type === 'millUnlocked') quests.toast('🌬️ The old sails creak and begin to turn once more.');
+      if (type === 'millUnlocked') {
+        windmillDone = true;
+        quests.toast('🌬️ The old sails creak and begin to turn once more.');
+      }
     }
   });
 
@@ -256,6 +303,21 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     onEvent: (type, data) => quests.handleEvent(type, data)
   });
 
+  let farmQuestState = 'none'; // none | traveling | active | complete | skipped
+  const farm = createFarm(scene, terrain.terrainHeight, collision, archery, {
+    position: FARM_ORIGIN,
+    onEvent: (type, data) => {
+      quests.handleEvent(type, data);
+      if (type === 'farmPestKilled') quests.toast(`Raider driven off â€” ${data.killed}/${data.total}`);
+      if (type === 'farmMissionComplete') {
+        quests.toast('The fields are safe â€” Mira is thrilled!');
+        inventory.add('herb', 4);
+        inventory.add('arrow', 6);
+        farmQuestState = 'complete';
+      }
+    }
+  });
+
   // One lightweight world-space beacon represents the selected map waypoint.
   const waypointPin = new THREE.Group();
   const waypointMaterial = new THREE.MeshBasicMaterial({
@@ -269,7 +331,10 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     position: TIC_POS,
     onEvent: (type, data) => {
       quests.handleEvent(type, data);
-      if (type === 'ticWin') quests.toast('★ Board conquered!');
+      if (type === 'ticWin') {
+        playTicWin(audio);
+        quests.toast('★ Board conquered!');
+      }
       if (type === 'ticLose') quests.toast('The board claims victory…');
     }
   });
@@ -291,36 +356,125 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     roadDistance: terrain.trailDistance,
     jumpProvider: (position, heading, speed) => stunt.getJumpImpulse(position, heading, speed),
     surfaceProvider: position => stunt.getSurfaceHeight(position),
+    getAudioContext: () => audio.audioCtx,
+    isMuted: () => audio.muted,
     onEvent: type => {
       if (type === 'mount') quests.toast('Bike mounted — stay on trails for top speed.');
     }
   });
   const waypointBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.075, 0.13, 22, 6), waypointMaterial
+    new THREE.CylinderGeometry(0.11, 0.18, 48, 6), waypointMaterial
   );
-  waypointBeam.position.y = 11;
+  waypointBeam.position.y = 24;
   const waypointHead = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.72, 0),
     new THREE.MeshBasicMaterial({ color: 0xfff0aa, transparent: true, opacity: 1, depthWrite: false, depthTest: false })
   );
-  waypointHead.position.y = 22.8;
+  waypointHead.position.y = 48.8;
   const waypointRing = new THREE.Mesh(
     new THREE.TorusGeometry(1.05, 0.07, 5, 12), waypointMaterial
   );
   waypointRing.rotation.x = Math.PI / 2;
-  waypointRing.position.y = 22.8;
+  waypointRing.position.y = 48.8;
   waypointPin.add(waypointBeam, waypointHead, waypointRing);
-  waypointPin.traverse(object => { object.frustumCulled = false; });
+  waypointPin.traverse(object => {
+    object.frustumCulled = false;
+    object.renderOrder = 100;
+  });
   waypointPin.visible = false;
   scene.add(waypointPin);
   let waypointTarget = null;
+
+  const activityHint = document.createElement('div');
+  Object.assign(activityHint.style, {
+    position: 'fixed', left: '50%', top: '14%', transform: 'translateX(-50%)',
+    display: 'none', maxWidth: '82vw', padding: '8px 14px', zIndex: '18',
+    background: 'rgba(12,16,22,0.82)', border: '1px solid rgba(255,211,94,0.55)',
+    borderRadius: '7px', color: '#ffe39a', fontSize: '12px', fontWeight: '700',
+    letterSpacing: '0.03em', textAlign: 'center', pointerEvents: 'none'
+  });
+  document.body.appendChild(activityHint);
+
+  function updateActivityHint(playerPos) {
+    const distanceTo = point => Math.hypot(playerPos.x - point.x, playerPos.z - point.z);
+    let message = '';
+    if (flameAccepted && !flameTowerDone && distanceTo(FLAME_TOWER_POS) < 24) {
+      message = 'Shoot the yellow brazier at the top of the Flame Tower';
+    } else if (windmillAccepted && !windmillDone && distanceTo({ x: 30, z: 55 }) < 18) {
+      message = 'Shoot the locking wedge at the center of the Windmill';
+    } else if (farmQuestState === 'none' && distanceTo(FARM_ORIGIN) < 58) {
+      message = 'Go to Emberford and bring Mira here to start the farm rescue';
+    } else if (farmQuestState === 'active' && !farm.missionDone && distanceTo(FARM_ORIGIN) < 70) {
+      message = 'Kill all animals destroying the crops';
+    }
+    if (!activityVoiceActive) activityHint.textContent = message;
+    if (message && !activityVoiceActive) activityHint.style.display = 'block';
+    else if (!message) activityHint.style.display = 'none';
+  }
+
+  const activityModal = document.createElement('div');
+  Object.assign(activityModal.style, {
+    position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+    display: 'none', zIndex: '95', pointerEvents: 'none'
+  });
+  activityModal.innerHTML = `<div style="width:min(380px,86vw);padding:18px;text-align:center;background:rgba(18,16,14,.96);border:1px solid rgba(217,183,121,.55);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.3);pointer-events:auto">
+    <div id="activityNpcName" style="font-size:11px;letter-spacing:2px;color:#d9b779;margin-bottom:8px"></div>
+    <div id="activityNpcText" style="font-size:14px;line-height:1.5;margin-bottom:14px"></div>
+    <div id="activityChoices" style="display:none;gap:8px;justify-content:center">
+      <button id="activityYes" type="button" style="min-width:86px;padding:8px 12px;border:1px solid rgba(150,240,180,.7);border-radius:6px;background:#3b9b68;color:#fff;font-size:11px;font-weight:700">YES</button>
+      <button id="activityNo" type="button" style="min-width:86px;padding:8px 12px;border:1px solid rgba(255,210,190,.45);border-radius:6px;background:rgba(120,55,45,.72);color:#fff1eb;font-size:11px;font-weight:700">NO</button>
+    </div>
+  </div>`;
+  document.body.appendChild(activityModal);
+  const activityChoices = activityModal.querySelector('#activityChoices');
+  const activityYes = activityModal.querySelector('#activityYes');
+  const activityNo = activityModal.querySelector('#activityNo');
+  const activityNpcName = activityModal.querySelector('#activityNpcName');
+  const activityNpcText = activityModal.querySelector('#activityNpcText');
+  let activityDialogBusy = false;
+
+  function openActivityDialog(activity) {
+    if (activityDialogBusy) return true;
+    const flame = activity === 'flame';
+    if ((flame && flameTowerDone) || (!flame && windmillDone)) return true;
+    activityDialogBusy = true;
+    activityNpcName.textContent = flame ? 'FLAME KEEPER' : 'MILL KEEPER';
+    activityNpcText.textContent = flame ? activityCaptions.flameAsk : activityCaptions.windmillAsk;
+    activityChoices.style.display = 'none';
+    activityModal.style.display = 'block';
+    playActivityLine(flame ? 'flameAsk' : 'windmillAsk').then(() => {
+      if (activityModal.style.display === 'block') {
+        activityDialogBusy = false;
+        activityChoices.style.display = 'flex';
+      }
+    });
+    activityYes.onclick = () => {
+      if (activityDialogBusy) return;
+      activityDialogBusy = true;
+      if (flame) flameAccepted = true;
+      else windmillAccepted = true;
+      activityModal.style.display = 'none';
+      activityVoiceSequence++;
+      activityVoiceActive = false;
+      playActivityLine(flame ? 'flameYes' : 'windmillYes').then(() => { activityDialogBusy = false; });
+    };
+    activityNo.onclick = () => {
+      if (activityDialogBusy) return;
+      activityDialogBusy = true;
+      activityModal.style.display = 'none';
+      activityVoiceSequence++;
+      activityVoiceActive = false;
+      playActivityLine('no').then(() => { activityDialogBusy = false; });
+    };
+    return true;
+  }
 
   // Create UI after all POIs are created
   const bikePoi = {
     name: 'Home Garage', pos: BIKE_POS, r: 8,
     flavor: 'Your bike is parked in the garage beside the cabin. Use Q or the action button to ride.'
   };
-  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList, ...tic.poiList, ...stunt.poiList, bikePoi], key => {
+  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList, ...tic.poiList, ...stunt.poiList, ...farm.poiList, bikePoi], key => {
     if (typeof key === 'string' && key.startsWith('poi:')) {
       quests.discover(key.slice(4));
       return;
@@ -346,6 +500,174 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     waypointPin.visible = !!target;
     if (target) waypointPin.position.set(target.x, terrain.terrainHeight(target.x, target.z), target.z);
   });
+
+  // ---------- Mira's Farm quest ----------
+  const mira = world.getNpc('mira');
+  const farmModal = document.createElement('div');
+  Object.assign(farmModal.style, {
+    position: 'fixed', inset: '0', zIndex: '95', display: 'none',
+    alignItems: 'center', justifyContent: 'center', background: 'transparent', pointerEvents: 'none'
+  });
+  farmModal.innerHTML = `
+    <div style="width:min(420px,88vw);background:rgba(18,16,14,0.94);border:1px solid rgba(217,183,121,0.55);border-radius:12px;padding:20px;text-align:center;color:#f3ead9;font-family:inherit;box-shadow:0 12px 36px rgba(0,0,0,0.32);pointer-events:auto">
+      <div style="font-size:11px;letter-spacing:2px;color:#d9b779;margin-bottom:6px">MIRA</div>
+      <div style="font-size:14px;line-height:1.5;margin-bottom:18px">Rider â€” my farm out west has been raided every night. Something is tearing through the fences and crop rows. Would you ride out with me and drive them off?</div>
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button id="farmHelpBtn" type="button" style="min-width:96px;padding:8px 12px;border-radius:6px;border:1px solid rgba(150,240,180,0.7);background:#3b9b68;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.04em;cursor:pointer">HELP</button>
+          <button id="farmSkipBtn" type="button" style="min-width:96px;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,210,190,0.45);background:rgba(120,55,45,0.72);color:#fff1eb;font-weight:700;font-size:11px;letter-spacing:0.04em;cursor:pointer">NO</button>
+      </div>
+    </div>`;
+  document.body.appendChild(farmModal);
+
+  const farmChoiceButtons = farmModal.querySelector('div > div:last-child');
+  const farmHelpBtn = document.getElementById('farmHelpBtn');
+  const farmSkipBtn = document.getElementById('farmSkipBtn');
+  const miraSubtitle = document.createElement('div');
+  Object.assign(miraSubtitle.style, {
+    position: 'fixed', left: '50%', bottom: '9%', transform: 'translateX(-50%)',
+    width: 'min(720px, 86vw)', padding: '10px 16px', display: 'none',
+    background: 'rgba(8, 11, 16, 0.86)', border: '1px solid rgba(255, 220, 150, 0.42)',
+    borderRadius: '8px', color: '#fff3d2', fontFamily: 'inherit', fontSize: '14px',
+    lineHeight: '1.45', textAlign: 'center', zIndex: '110', pointerEvents: 'none'
+  });
+  document.body.appendChild(miraSubtitle);
+  const miraCaptions = {
+    ask: 'Rider - my farm out west has been raided every night. Something\'s tearing through the fences and the crop rows. Would you ride out with me and drive them off?',
+    characterNo: 'Nah, some other time.',
+    characterYes: 'Yeah, sure. Let\'s do this.',
+    yes: 'Bless you. Climb up - I\'ll ride behind you. It\'s marked on your map now.'
+  };
+  let farmVoiceBusy = false;
+  let miraVoiceSequence = 0;
+
+  function setFarmChoiceVisible(visible) {
+    farmChoiceButtons.style.display = visible ? 'flex' : 'none';
+    farmHelpBtn.disabled = !visible;
+    farmSkipBtn.disabled = !visible;
+  }
+
+  function playMiraLine(name) {
+    const sequence = ++miraVoiceSequence;
+    miraSubtitle.textContent = miraCaptions[name] || '';
+    miraSubtitle.style.display = 'block';
+    return playMiraVoice(
+      audio,
+      name,
+      () => { if (sequence === miraVoiceSequence) miraSubtitle.style.display = 'block'; },
+      () => { if (sequence === miraVoiceSequence) miraSubtitle.style.display = 'none'; }
+    );
+  }
+
+  farmHelpBtn.addEventListener('click', () => {
+    if (farmVoiceBusy) return;
+    farmVoiceBusy = true;
+    setFarmChoiceVisible(false);
+    farmModal.style.display = 'none';
+    farmQuestState = 'traveling';
+    if (mira) {
+      mira.following = true;
+      mira.interactionDisabled = true;
+    }
+    ui.setWaypointByName("Mira's Farm");
+    quests.toast('Mira rides along. Head for the farm â€” it is marked on your map.');
+    const sequence = miraVoiceSequence + 1;
+    playMiraLine('characterYes').then(() => {
+      if (sequence !== miraVoiceSequence) return;
+      setTimeout(() => {
+        if (sequence === miraVoiceSequence) playMiraLine('yes');
+      }, 1000);
+    });
+  });
+  farmSkipBtn.addEventListener('click', () => {
+    if (farmVoiceBusy) return;
+    farmVoiceBusy = true;
+    setFarmChoiceVisible(false);
+    farmModal.style.display = 'none';
+    farmQuestState = 'skipped';
+    playMiraLine('characterNo');
+  });
+
+  const farmPromptEl = document.createElement('div');
+  Object.assign(farmPromptEl.style, {
+    position: 'fixed', left: '50%', bottom: '24%', transform: 'translateX(-50%)',
+    padding: '8px 16px', background: 'rgba(20,16,12,0.76)', color: '#f3ead9',
+    fontFamily: 'inherit', fontSize: '14px', borderRadius: '9px',
+    border: '1px solid rgba(255,255,255,0.18)', opacity: '0', transition: 'opacity 0.22s',
+    pointerEvents: 'none', zIndex: '50'
+  });
+  farmPromptEl.classList.add('context-prompt');
+  farmPromptEl.dataset.mobileKey = 'e';
+  farmPromptEl.dataset.mobilePriority = 'high';
+  farmPromptEl.textContent = 'Press E to hear Mira out';
+  document.body.appendChild(farmPromptEl);
+
+  function canOfferFarmQuest() {
+    if (!mira || farmQuestState !== 'none' || quests.chapter > 0 || world.isTalking) return false;
+    return Math.hypot(player.position.x - mira.mesh.position.x, player.position.z - mira.mesh.position.z) < 4;
+  }
+
+  function tryOpenFarmQuest() {
+    if (!canOfferFarmQuest() || farmModal.style.display === 'flex') return false;
+    farmModal.style.display = 'flex';
+    farmVoiceBusy = true;
+    setFarmChoiceVisible(false);
+    playMiraLine('ask').then(() => {
+      if (farmModal.style.display === 'flex') {
+        farmVoiceBusy = false;
+        setFarmChoiceVisible(true);
+      }
+    });
+    return true;
+  }
+
+  function updateFarmQuest(dt, elapsed) {
+    farmPromptEl.style.opacity = canOfferFarmQuest() && farmModal.style.display !== 'flex' ? '1' : '0';
+    if (farmQuestState === 'traveling' && mira) {
+      if (player.mounted) {
+        mira.followWalking = false;
+        const back = { x: -Math.sin(player.heading), z: -Math.cos(player.heading) };
+        mira.mesh.position.set(player.position.x + back.x * 1.1, player.position.y + 1.55, player.position.z + back.z * 1.1);
+        mira.mesh.rotation.y = player.heading;
+      } else if (bike.riding) {
+        mira.followWalking = false;
+        const bh = bike.group.rotation.y;
+        const back = { x: -Math.sin(bh), z: -Math.cos(bh) };
+        mira.mesh.position.set(bike.group.position.x + back.x * 0.48, bike.group.position.y + 0.62, bike.group.position.z + back.z * 0.48);
+        mira.mesh.rotation.y = bh;
+        const rig = mira.mesh.userData;
+        if (rig.hips) {
+          rig.hips.position.y = 0.78;
+          rig.hips.rotation.x = -0.18;
+        }
+        if (rig.legs) rig.legs.forEach((leg, index) => {
+          leg.hip.rotation.x = -0.55;
+          leg.knee.rotation.x = index % 2 === 0 ? 1.25 : 1.05;
+        });
+        if (rig.arms) rig.arms.forEach(arm => {
+          arm.shoulder.rotation.x = -0.55;
+          arm.elbow.rotation.x = -0.8;
+        });
+      } else {
+        mira.followWalking = true;
+        const targetX = player.position.x - Math.sin(player.heading) * 2.2 + Math.cos(player.heading) * 1.4;
+        const targetZ = player.position.z - Math.cos(player.heading) * 2.2 - Math.sin(player.heading) * 1.4;
+        mira.mesh.position.x += (targetX - mira.mesh.position.x) * Math.min(1, dt * 2.4);
+        mira.mesh.position.z += (targetZ - mira.mesh.position.z) * Math.min(1, dt * 2.4);
+        mira.mesh.position.y = terrain.terrainHeight(mira.mesh.position.x, mira.mesh.position.z);
+      }
+      if (Math.hypot(player.position.x - farm.position.x, player.position.z - farm.position.z) < 14) {
+        farmQuestState = 'active';
+        mira.following = false;
+        mira.lockedPosition = true;
+        mira.mesh.position.set(farm.arrivalSpot.x, terrain.terrainHeight(farm.arrivalSpot.x, farm.arrivalSpot.z), farm.arrivalSpot.z);
+        ui.clearWaypoint();
+        farm.startMission();
+        quests.toast('Mira: "There â€” raiders are tearing through the crop rows. Take them down!"');
+      }
+    }
+    farm.update(dt, elapsed, player.position);
+    updateActivityHint(player.position);
+  }
 
   // Add simple exploration targets at various locations
   const explorationTargets = [
@@ -410,7 +732,12 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
   });
 
   const gallopBtn = document.getElementById('gallopBtn');
-  gallopBtn.addEventListener('pointerdown', e => { keys['shift'] = true;  e.preventDefault(); });
+  gallopBtn.addEventListener('pointerdown', e => {
+    startAudio(audio);
+    if (bike.riding) bike.boost();
+    else keys['shift'] = true;
+    e.preventDefault();
+  });
   gallopBtn.addEventListener('pointerup',   e => { keys['shift'] = false; e.preventDefault(); });
   gallopBtn.addEventListener('pointerleave', () => { keys['shift'] = false; });
 
@@ -538,7 +865,8 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
       .filter(el => el.dataset.mobileKey && Number.parseFloat(el.style.opacity || '0') > 0.5);
 
     // Priority: TV (v) first, then anything else
-    const prompt = prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
+    const prompt = prompts.find(el => el.dataset.mobilePriority === 'high') ||
+      prompts.find(el => el.dataset.mobileKey === 'v') || prompts[0];
 
     if (!prompt && player.canMount) {
       contextBtn.textContent = 'MOUNT';
@@ -584,8 +912,9 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
   function refreshMobileButtons() {
     if (!touchControls) return;
     callHorseBtn.style.display = player.mounted || bike.riding ? 'none' : 'block';
-    dismountBtn.style.display = player.mounted ? 'block' : 'none';
+    dismountBtn.style.display = player.mounted || bike.riding ? 'block' : 'none';
     gallopBtn.textContent = bike.riding ? 'BOOST' : player.mounted ? 'GALLOP' : 'SPRINT';
+    gallopBtn.classList.toggle('nitro-ready', bike.riding);
     document.getElementById('rearBtn').style.display = player.mounted ? 'block' : 'none';
     bowBtn.style.display = player.canUseArchery ? 'block' : 'none';
   }
@@ -642,6 +971,10 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     history.pushState({ embertrail: true }, '');
     // If the launch overlay is still visible, just ignore — no game yet
     if (launchOverlay && !launchOverlay.classList.contains('is-hidden')) return;
+    if (world.isTalking) {
+      world.closeTalk();
+      return;
+    }
     showExitDialog();
   });
   // ────────────────────────────────────────────────────────────────────
@@ -715,9 +1048,14 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     questsBtn.addEventListener('pointerdown', e => useActivity('j', e));
     mapBtn.addEventListener('pointerdown', e => {
       ui.toggleMap();
-      mobileActivityMenu.classList.remove('is-open');
-      activityToggle.setAttribute('aria-expanded', 'false');
+      // Keep the source button through this touch sequence. If it disappears
+      // immediately, Android can deliver the ending click to the backdrop.
+      setTimeout(() => {
+        mobileActivityMenu.classList.remove('is-open');
+        activityToggle.setAttribute('aria-expanded', 'false');
+      }, 0);
       startAudio(audio);
+      e.stopPropagation();
       e.preventDefault();
     });
     sensitivitySlider.addEventListener('input', e => {
@@ -762,7 +1100,7 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
   // camera controls
   let camYawOffset = 0.15;
   let camPitch = 0.38;
-  let camDist = 13;
+  let camDist = 8;
   let lookSensitivity = 1;
   let dragging = false;
   let lastX = 0;
@@ -928,12 +1266,16 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
       // The cabin owns E while close to its door (or an item inside it);
       // elsewhere E keeps its normal mount/dismount behaviour.
       if (keys['e']) {
-        if (world.isTalking) {
+        if (tryOpenFarmQuest()) {
+          keys['e'] = false;
+        } else if (world.isTalking) {
           world.tryInteract(player);
           keys['e'] = false;
         } else if (house.tryInteract(player)) {
           keys['e'] = false;
         } else if (mandir.tryInteract(player)) {
+          keys['e'] = false;
+        } else if (world.getNearestActivity() && openActivityDialog(world.getNearestActivity())) {
           keys['e'] = false;
         } else if (world.tryInteract(player)) {
           keys['e'] = false;
@@ -953,6 +1295,7 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
       quests.update(dt, keys);
       forage.update(dt, keys, player.position);
       world.update(dt, elapsed, player.position, player.speed);
+      updateFarmQuest(dt, elapsed);
       flameTower.update(dt, elapsed, { isRaining: weather.isRaining, rainAmount: weather.rainAmount });
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
@@ -1003,8 +1346,8 @@ import { createStunt, STUNT_ORIGIN } from './stunt.js';
     if (waypointTarget) {
       waypointPin.position.y = terrain.terrainHeight(waypointTarget.x, waypointTarget.z);
       const pulse = Math.sin(elapsed * 2.5) * 0.28;
-      waypointHead.position.y = 22.8 + pulse;
-      waypointRing.position.y = 22.8 + pulse;
+      waypointHead.position.y = 48.8 + pulse;
+      waypointRing.position.y = 48.8 + pulse;
       waypointRing.rotation.z = elapsed * 0.7;
     }
     

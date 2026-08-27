@@ -80,6 +80,7 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, 
 
   // A small DOM map keeps navigation useful without adding another canvas or render pass.
   let mapOpen = false;
+  let mapOpenedAt = -Infinity;
   let waypoint = null;
   const mapBackdrop = document.createElement('div');
   Object.assign(mapBackdrop.style, {
@@ -153,12 +154,22 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, 
 
   function toggleMap(show = !mapOpen) {
     mapOpen = !!show;
+    if (mapOpen) mapOpenedAt = performance.now();
     mapBackdrop.style.display = mapOpen ? 'block' : 'none';
     mapPanel.style.display = mapOpen ? 'block' : 'none';
     if (mapOpen) renderMap();
   }
   mapToggle.addEventListener('click', () => toggleMap());
-  mapBackdrop.addEventListener('click', () => toggleMap(false));
+  mapBackdrop.addEventListener('click', event => {
+    // The activity button can disappear while its touch is still down. Its
+    // compatibility click would then land on this backdrop and close the map.
+    if (performance.now() - mapOpenedAt < 350) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    toggleMap(false);
+  });
   window.addEventListener('keydown', event => {
     const typing = event.target instanceof Element && event.target.matches('input, textarea, select');
     if (event.key.toLowerCase() === 'm' && !event.repeat && !typing) {

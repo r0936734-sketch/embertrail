@@ -1,5 +1,6 @@
 import { MANDIR_ORIGIN } from './mandir.js';
 import { RANGE_ORIGIN } from './range.js';
+import { FARM_ORIGIN } from './farm.js';
 
 export function createMountains(scene) {
   // ---------- materials that will be recolored by climate ----------
@@ -122,6 +123,7 @@ export function createMountains(scene) {
     // both dedicated activity areas instead of only avoiding their centres.
     if (Math.hypot(x - MANDIR_ORIGIN.x, z - MANDIR_ORIGIN.z) < 118) continue;
     if (Math.hypot(x - RANGE_ORIGIN.x, z - RANGE_ORIGIN.z) < 150) continue;
+    if (Math.hypot(x - FARM_ORIGIN.x, z - FARM_ORIGIN.z) < 150) continue;
     nearGroup.add(makeMountain(x, z, 0.9 + Math.random() * 0.8));
   }
   scene.add(nearGroup);
@@ -142,7 +144,9 @@ export function createMountains(scene) {
     }
     geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, midMat);
-    m.position.set(Math.cos(ang) * rad, h / 2 - 12, Math.sin(ang) * rad);
+    const mx = Math.cos(ang) * rad, mz = Math.sin(ang) * rad;
+    if (Math.hypot(mx - FARM_ORIGIN.x, mz - FARM_ORIGIN.z) < 150) continue;
+    m.position.set(mx, h / 2 - 12, mz);
     midGroup.add(m);
   }
   scene.add(midGroup);

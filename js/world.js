@@ -237,20 +237,15 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
   addNpc({
     id: 'mira',
     name: 'Mira',
-    title: 'Innkeeper',
+    title: 'Farmkeeper',
     x: V.x + 0.5, z: V.z + 5.5, yaw: 0.2,
     palette: { skin: 0xe8c4a8, shirt: 0x8b2e2e, pants: 0x2c2430, hair: 0x3a2218 },
-    guideTo: 'The Flame Tower', guideMessage: 'Mira marks the Flame Tower on your trail map.',
     lines: [
-      'Rider. The valley forgets its own name when the hearths go cold.',
-      'I keep Emberford\'s inn, but the signal fire on the ridge has been dead for seasons.',
-      'Take this letter to the hermit by Hidden Falls. He still remembers the old route.',
-      'When the beacon burns again, bring me an ember. We will light the village hearth together.'
+      'Rider, my farm is being torn apart every night. Will you help me protect the fields?',
+      'The raiders hide among the crop rows. Drive them out and I will make sure the farm feeds the trail.'
     ],
     laterLines: [
-      'You came back with fire in your stories. The inn can breathe.',
-      'Hang Ash\'s lantern by the door. Let Emberford be a sentence the night can read.',
-      'The trail is yours now. Ride it until the seasons forget how to end.'
+      'The fields are safe again. You have a place at my table whenever you ride this way.'
     ]
   });
 
@@ -295,6 +290,19 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       'West is Emberford. South, salt water. North, stones that watch the sky.',
       'If you name a constellation, come back. I will put it in the chorus.'
     ]
+  });
+
+  addNpc({
+    id: 'flameGuide', name: 'Flame Keeper', title: 'Beacon Keeper',
+    x: 130, z: 56, yaw: 0,
+    palette: { skin: 0xd6a77f, shirt: 0x9a442e, pants: 0x2c2522, hair: 0x241812 },
+    activity: 'flame', lines: ['The beacon needs your arrow.']
+  });
+  addNpc({
+    id: 'windmillGuide', name: 'Mill Keeper', title: 'Windmill Keeper',
+    x: 30, z: 51, yaw: 0,
+    palette: { skin: 0xc99d78, shirt: 0x496b70, pants: 0x302722, hair: 0x211812 },
+    activity: 'windmill', lines: ['The old mill waits for a clean shot.']
   });
 
   // ---------- Saltmarsh docks ----------
@@ -509,8 +517,19 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
   panel.innerHTML = `
     <div id="dlgName" style="font-size:11px;letter-spacing:2px;color:#d9b779;margin-bottom:6px"></div>
     <div id="dlgText" style="font-size:15px;line-height:1.45"></div>
-    <div style="margin-top:10px;opacity:.65;font-size:11px">E / ACTION — continue &nbsp;·&nbsp; Esc — close</div>`;
+    <div style="margin-top:10px;opacity:.65;font-size:11px">E / ACTION — continue &nbsp;·&nbsp; Esc — close</div>
+    <div id="mobileTalkControls" style="display:none;gap:8px;margin-top:14px">
+      <button id="mobileTalkNext" type="button" style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.24);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;font-weight:700">NEXT</button>
+      <button id="mobileTalkClose" type="button" style="flex:1;padding:10px;border:1px solid rgba(255,150,120,.35);border-radius:8px;background:rgba(120,50,40,.28);color:#ffe5dc;font-weight:700">ESC / CLOSE</button>
+    </div>`;
   document.body.appendChild(panel);
+
+  const mobileTalkControls = panel.querySelector('#mobileTalkControls');
+  const mobileTalkNext = panel.querySelector('#mobileTalkNext');
+  const mobileTalkClose = panel.querySelector('#mobileTalkClose');
+  if (window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
+    mobileTalkControls.style.display = 'flex';
+  }
 
   const prompt = document.createElement('div');
   prompt.className = 'context-prompt';
@@ -574,6 +593,15 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     panel.style.display = 'none';
   }
 
+  mobileTalkNext.addEventListener('click', event => {
+    event.stopPropagation();
+    if (talking) tryInteract(null);
+  });
+  mobileTalkClose.addEventListener('click', event => {
+    event.stopPropagation();
+    closeTalk();
+  });
+
   function tryInteract(player) {
     if (talking) {
       const pack = (talking.laterLines && chapter() >= 10) ? talking.laterLines : talking.lines;
@@ -619,7 +647,12 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
       n.mesh.visible = !far;
       if (far) continue;
 
-      if (talking === n) {
+      const closeToPlayer = d2 < 3.2 * 3.2;
+      if (talking === n || closeToPlayer) {
+        n.state = 'idle';
+      } else if (n.following || n.lockedPosition) {
+        n.state = n.followWalking ? 'wander' : 'idle';
+      } else if (talking === n) {
         const face = Math.atan2(playerPos.x - n.mesh.position.x, playerPos.z - n.mesh.position.z);
         n.mesh.rotation.y += (face - n.mesh.rotation.y) * Math.min(1, dt * 4);
         n.state = 'talk';
@@ -675,7 +708,7 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
         }
       }
 
-      if (d2 < best) {
+      if (!n.interactionDisabled && d2 < best) {
         best = d2;
         nearest = n;
       }
@@ -717,6 +750,8 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     update,
     tryInteract,
     setQuests(q) { questsRef = q; },
+    getNpc(id) { return npcs.find(n => n.id === id) || null; },
+    getNearestActivity() { return nearest && nearest.activity ? nearest.activity : null; },
     get isTalking() { return !!talking; },
     closeTalk
   };
