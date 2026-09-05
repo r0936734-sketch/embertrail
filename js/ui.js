@@ -257,7 +257,7 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, 
   let frameAccum = 0;
   let frameTimer = 0;
 
-  function update(dt, player, climate, speciesProgress) {
+  function update(dt, player, climate, speciesProgress, sampledFps = null) {
     updateCompass(player.heading);
     const activePos = player.position;
     updatePOI(dt, activePos);
@@ -292,12 +292,16 @@ export function createUI(player, landmarkPois = [], onDiscoverEvent = () => {}, 
     staminaFill.style.width = pct + '%';
     staminaFill.style.background = pct > 50 ? '#6fdc8c' : pct > 20 ? '#e0c15a' : '#e0685a';
 
-    frameAccum++;
-    frameTimer += dt;
-    if (frameTimer >= 0.5) {
-      fpsEl.textContent = Math.round(frameAccum / frameTimer) + ' fps';
-      frameAccum = 0;
-      frameTimer = 0;
+    if (Number.isFinite(sampledFps)) {
+      fpsEl.textContent = Math.round(sampledFps) + ' fps';
+    } else {
+      frameAccum++;
+      frameTimer += dt;
+      if (frameTimer >= 0.5) {
+        fpsEl.textContent = Math.round(frameAccum / frameTimer) + ' fps';
+        frameAccum = 0;
+        frameTimer = 0;
+      }
     }
   }
 

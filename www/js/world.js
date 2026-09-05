@@ -641,6 +641,15 @@ export function createWorld(scene, terrainHeight, collision, { inventory, onEven
     let best = 3.6 * 3.6;
     const gallop = Math.abs(playerSpeed) > 6;
 
+    // Settlements are made of lots of small meshes and lantern lights. Three.js
+    // frustum-culls meshes, but it cannot infer that a far-away lantern should
+    // stop contributing to the light list. Hide whole prop groups by distance.
+    for (const prop of props) {
+      const dx = prop.position.x - playerPos.x;
+      const dz = prop.position.z - playerPos.z;
+      prop.visible = dx * dx + dz * dz < 175 * 175;
+    }
+
     for (const n of npcs) {
       const d2 = distSq(playerPos.x, playerPos.z, n.mesh.position.x, n.mesh.position.z);
       const far = d2 > 90 * 90;

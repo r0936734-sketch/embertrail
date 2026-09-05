@@ -34,14 +34,14 @@ export function createClimate(deps) {
     spring: {
       skyTop: 0x27425e, skyBottom: 0xaecbe0, ground: 0x8fae6a,
       cherry: 0xf7c3d6, pine: 0x2b4a2c,
-      near: 0x5a7a48, mid: 0x7a93a8, far: 0xa9bfce,
+      near: 0x70756c, mid: 0x7a93a8, far: 0xa9bfce,
       snow: 0.05, petal: 1.0, leaf: 0.0, mountainSnow: 0.55,
       weather: '🌸 Cherry Blossoms'
     },
     summer: {
       skyTop: 0x123a63, skyBottom: 0x6f9bc9, ground: 0x5f8a45,
       cherry: 0x4f7a3a, pine: 0x274d2a,
-      near: 0x4f7a3d, mid: 0x7a93a8, far: 0xa9bfce,
+      near: 0x6d746d, mid: 0x7a93a8, far: 0xa9bfce,
       snow: 0.0, petal: 0.12, leaf: 0.0, mountainSnow: 0.12,
       weather: '☀ Clear Skies'
     },
@@ -226,6 +226,11 @@ export function createClimate(deps) {
     },
     get gameMinutes() { return gameMinutes; },
     get climateWarming() { return climateWarming; },
-    get dayAmt() { return lastDayAmt; }
+    get dayAmt() { return lastDayAmt; },
+    restoreState(state = {}) {
+      if (Number.isFinite(state.gameMinutes)) gameMinutes = ((state.gameMinutes % 1440) + 1440) % 1440;
+      if (Number.isInteger(state.seasonIdx)) seasonIdx = THREE.MathUtils.clamp(state.seasonIdx, 0, seasonNames.length - 1);
+      if (Number.isFinite(state.seasonT)) seasonT = Math.max(0, state.seasonT);
+    }
   };
 }

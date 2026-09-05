@@ -4,22 +4,70 @@
 // rectangular interior) push out along the shallower overlap axis.
 export function createCollisionSystem() {
   const colliders = [];
+  const cells = new Map();
+  const nearby = new Set();
+  const CELL_SIZE = 18;
+
+  function indexCollider(c) {
+    const reach = c.type === 'circle' ? c.r : Math.max(c.hw, c.hd);
+    c._cells = [];
+    const minX = Math.floor((c.x - reach) / CELL_SIZE);
+    const maxX = Math.floor((c.x + reach) / CELL_SIZE);
+    const minZ = Math.floor((c.z - reach) / CELL_SIZE);
+    const maxZ = Math.floor((c.z + reach) / CELL_SIZE);
+    for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
+      const key = `${x},${z}`;
+      let bucket = cells.get(key);
+      if (!bucket) cells.set(key, bucket = []);
+      bucket.push(c);
+      c._cells.push(key);
+    }
+  }
+
+  function unindexCollider(c) {
+    if (!c._cells) return;
+    for (const key of c._cells) {
+      const bucket = cells.get(key);
+      if (!bucket) continue;
+      const index = bucket.indexOf(c);
+      if (index !== -1) bucket.splice(index, 1);
+      if (bucket.length === 0) cells.delete(key);
+    }
+  }
 
   function addCollider(x, z, r) {
     const collider = { type: 'circle', x, z, r, enabled: true };
     colliders.push(collider);
+    indexCollider(collider);
     return collider;
   }
 
   function addBox(x, z, halfW, halfD) {
     const collider = { type: 'box', x, z, hw: halfW, hd: halfD, enabled: true };
     colliders.push(collider);
+    indexCollider(collider);
     return collider;
   }
 
+  function moveCollider(collider, x, z) {
+    if (!collider || (collider.x === x && collider.z === z)) return;
+    unindexCollider(collider);
+    collider.x = x;
+    collider.z = z;
+    indexCollider(collider);
+  }
+
   function resolve(pos, radius) {
-    for (let i = 0; i < colliders.length; i++) {
-      const c = colliders[i];
+    nearby.clear();
+    const minX = Math.floor((pos.x - radius) / CELL_SIZE);
+    const maxX = Math.floor((pos.x + radius) / CELL_SIZE);
+    const minZ = Math.floor((pos.z - radius) / CELL_SIZE);
+    const maxZ = Math.floor((pos.z + radius) / CELL_SIZE);
+    for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) {
+      const bucket = cells.get(`${x},${z}`);
+      if (bucket) for (const c of bucket) nearby.add(c);
+    }
+    for (const c of nearby) {
       if (!c.enabled) continue;
       if (c.type === 'circle') {
         const dx = pos.x - c.x, dz = pos.z - c.z;
@@ -50,5 +98,5 @@ export function createCollisionSystem() {
     return pos;
   }
 
-  return { addCollider, addBox, resolve, colliders };
+  return { addCollider, addBox, moveCollider, resolve, colliders };
 }

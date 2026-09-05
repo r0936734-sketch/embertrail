@@ -262,6 +262,31 @@
   background: linear-gradient(90deg, transparent, rgba(255, 177, 90, 0.35), transparent);
 }
 
+.launch-settings {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.launch-setting {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  line-height: 1.15;
+  min-height: 42px;
+  color: var(--ink);
+  background: rgba(8, 13, 21, 0.7);
+  border: 1px solid rgba(132, 184, 205, 0.28);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.launch-setting:hover { background: rgba(255, 177, 90, 0.1); border-color: rgba(255, 177, 90, 0.6); transform: translateY(-1px); }
+.launch-setting.is-muted { color: rgba(243, 234, 217, 0.48); border-color: rgba(255,255,255,0.12); }
+
 /* ---------- buttons ---------- */
 .launch-btn-col,
 .launch-btn-row {
@@ -436,6 +461,7 @@
   .credit-divider { margin: 7px 0; }
 
   .launch-btn { padding: 9px 16px; font-size: 10.5px; }
+  .launch-setting { min-height: 31px; font-size: 8.5px; }
 
   .launch-section-title { font-size: clamp(16px, 5.5dvh, 22px); }
   .howto-grid { gap: 6px; }
@@ -470,6 +496,8 @@
 
   .launch-btn-col { gap: 6px; margin-top: 2px; }
   .launch-btn { padding: 7px 16px; font-size: 9.5px; }
+  .launch-settings { gap: 6px; }
+  .launch-setting { min-height: 26px; font-size: 7.5px; }
 
   .launch-section-title { font-size: 13px; }
   .howto-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }

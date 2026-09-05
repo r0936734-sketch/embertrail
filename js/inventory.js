@@ -82,5 +82,12 @@ export function createInventory(startArrows = 18) {
     prevI = i;
   }
 
-  return { items, count, add, take, craftArrows, update, onChange: f=>listeners.push(f), close: ()=>setOpen(false), get isOpen(){ return open; } };
+  function restore(savedItems = {}) {
+    Object.keys(items).forEach(key => {
+      if (Number.isFinite(savedItems[key])) items[key] = Math.max(0, Math.floor(savedItems[key]));
+    });
+    render();
+  }
+
+  return { items, count, add, take, craftArrows, restore, update, onChange: f=>listeners.push(f), close: ()=>setOpen(false), get isOpen(){ return open; } };
 }

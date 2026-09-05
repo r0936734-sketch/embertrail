@@ -43,12 +43,12 @@ export const STUNT_ORIGIN = { x: -80, z: 260 };
 export const STUNT_ROTATION = 0;
 export const STUNT_PAD_OFFSET = 0.6;
 
-const STUNT_RAMP_Z0 = -30;
-const STUNT_LANDING_Z1 = 140;
+const STUNT_RAMP_Z0 = -42;
+const STUNT_LANDING_Z1 = 200;
 // This includes a small shoulder around the 20m-wide asphalt.  Keeping the
 // terrain flat beyond the visible edge avoids grass clipping through it and
 // gives the bike a safe recovery area after an imperfect landing.
-const STUNT_HALF_WIDTH = 14;
+const STUNT_HALF_WIDTH = 18;
 
 function stuntToLocal(x, z, position = STUNT_ORIGIN, rotationY = STUNT_ROTATION) {
   const dx = x - position.x, dz = z - position.z;
@@ -63,8 +63,8 @@ export function stuntCorridorT(x, z, position = STUNT_ORIGIN, rotationY = STUNT_
     if (value > max) return 1 - Math.min(1, (value - max) / fade);
     return 1;
   };
-  const along = edge(lz, STUNT_RAMP_Z0 - 14, STUNT_LANDING_Z1, 8);
-  const across = edge(Math.abs(lx), STUNT_HALF_WIDTH, STUNT_HALF_WIDTH, 4);
+  const along = edge(lz, STUNT_RAMP_Z0 - 18, STUNT_LANDING_Z1, 10);
+  const across = edge(Math.abs(lx), STUNT_HALF_WIDTH, STUNT_HALF_WIDTH, 6);
   return Math.max(0, Math.min(1, along * across));
 }
 
@@ -200,20 +200,20 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
   //   z -14 ......  +2        the gap (open air, nothing underfoot)
   //   z  +2 .......  +90      long flat landing field, ground level
   // ─────────────────────────────────────────────────────────────────
-  const RAMP_RISE = 5.5;
-  const RAMP_RUN  = 32;
-  const RAMP_WIDTH = 9;
+  const RAMP_RISE = 7.2;
+  const RAMP_RUN  = 40;
+  const RAMP_WIDTH = 11;
   const rampSeg = {
-    x0: 0, z0: -30, h0: 0,
-    x1: 0, z1: -30 + RAMP_RUN, h1: RAMP_RISE,
+    x0: 0, z0: -42, h0: 0,
+    x1: 0, z1: -42 + RAMP_RUN, h1: RAMP_RISE,
     halfWidth: RAMP_WIDTH / 2,
-    minSpeed: 6.5,
-    impulseBase: 6.5,
-    impulseScale: 0.24
+    minSpeed: 6.0,
+    impulseBase: 7.0,
+    impulseScale: 0.26
   };
-  const LANDING_Z0 = rampSeg.z1 + 20; // leave a real gap after the launch lip
-  const LANDING_Z1 = 140;
-  const LANDING_HALF_W = 9;
+  const LANDING_Z0 = rampSeg.z1 + 28; // leave a real gap after the launch lip
+  const LANDING_Z1 = 200;
+  const LANDING_HALF_W = 12;
 
   function buildRamp() {
     const dx = rampSeg.x1 - rampSeg.x0, dz = rampSeg.z1 - rampSeg.z0;
@@ -249,7 +249,7 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
     }
 
     // approach runway before the ramp
-    box(RAMP_WIDTH, 0.12, 18, asphaltMat, 0, -midH, -len / 2 - 9, g);
+    box(RAMP_WIDTH, 0.12, 26, asphaltMat, 0, -midH, -len / 2 - 13, g);
   }
   buildRamp();
 
@@ -259,7 +259,7 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
     0, 0.06, (LANDING_Z0 + LANDING_Z1) / 2, root);
   makeCheckered(LANDING_HALF_W * 2 - 2, 14, 8, 6, 0.08, 0, LANDING_Z0 + 10, root);
 
-  for (let m = 10; m <= 70; m += 10) {
+  for (let m = 10; m <= 120; m += 10) {
     // marker distance measured from the launch lip (z = rampSeg.z1)
     makeDistanceFlag(root, m, rampSeg.z1 + m, LANDING_HALF_W);
   }
@@ -416,7 +416,7 @@ export function createStunt(scene, terrainHeight, collision, options = {}) {
     lastLaunch = elapsedLocal;
     airborne = { startX: pos.x, startZ: pos.z, startTime: elapsedLocal };
 
-    return 5.7 + steepness * 2.4 + speedSkill * 5.2 + alignmentSkill * 1.15 + lipSkill * 1.25;
+    return 6.4 + steepness * 2.8 + speedSkill * 6.0 + alignmentSkill * 1.3 + lipSkill * 1.4;
   }
 
   // ─────────────────────────────────────────────────────────────────

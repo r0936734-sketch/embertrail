@@ -272,8 +272,33 @@ export function createQuests({ inventory, onComplete = () => {} }) {
     prevJ = j;
   }
 
+  function getState() {
+    return {
+      chapterIndex,
+      miraTalks,
+      bounties: bounties.map(b => ({ done: b.done, complete: b.complete })),
+      chapters: chapters.map(chapter => ({ done: chapter.done, complete: chapter.complete }))
+    };
+  }
+
+  function restoreState(state = {}) {
+    if (Number.isInteger(state.chapterIndex)) chapterIndex = Math.max(0, Math.min(chapters.length, state.chapterIndex));
+    if (Number.isInteger(state.miraTalks)) miraTalks = Math.max(0, state.miraTalks);
+    (state.bounties || []).forEach((saved, index) => {
+      if (!bounties[index]) return;
+      if (Number.isFinite(saved.done)) bounties[index].done = Math.max(0, saved.done);
+      bounties[index].complete = !!saved.complete;
+    });
+    (state.chapters || []).forEach((saved, index) => {
+      if (!chapters[index]) return;
+      if (Number.isFinite(saved.done)) chapters[index].done = Math.max(0, saved.done);
+      chapters[index].complete = !!saved.complete;
+    });
+    render();
+  }
+
   return {
     handleEvent, progress, discover, update, bounties, chapters, toast,
-    close: () => setOpen(false), get isOpen() { return open; }, get chapter() { return chapterIndex; }
+    getState, restoreState, close: () => setOpen(false), get isOpen() { return open; }, get chapter() { return chapterIndex; }
   };
 }

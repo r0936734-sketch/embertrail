@@ -1,11 +1,12 @@
 import { MANDIR_ORIGIN } from './mandir.js';
 import { RANGE_ORIGIN } from './range.js';
 import { FARM_ORIGIN } from './farm.js';
+import { BIG_MOUNTAIN_ORIGIN, BIG_MOUNTAIN_BASE_RADIUS } from './bigmountain.js';
 
 export function createMountains(scene) {
   // ---------- materials that will be recolored by climate ----------
   const nearMat = new THREE.MeshStandardMaterial({
-    color: 0x4f7a3d,          // summer green from the SVG
+    color: 0x6d746d,          // neutral alpine stone; seasonal tint is applied by climate.js
     roughness: 0.92,
     flatShading: true,
     vertexColors: true
@@ -26,8 +27,8 @@ export function createMountains(scene) {
   });
 
   // ---------- detailed peak generator (lit / shadow + snow) ----------
-  const rockLit   = new THREE.Color(0x4f7a3d);
-  const rockShad  = new THREE.Color(0x2e4f26);
+  const rockLit   = new THREE.Color(0x74736d);
+  const rockShad  = new THREE.Color(0x454850);
   const snowLit   = new THREE.Color(0xffffff);
   const snowShad  = new THREE.Color(0xcfe6f2);
 
@@ -124,6 +125,7 @@ export function createMountains(scene) {
     if (Math.hypot(x - MANDIR_ORIGIN.x, z - MANDIR_ORIGIN.z) < 118) continue;
     if (Math.hypot(x - RANGE_ORIGIN.x, z - RANGE_ORIGIN.z) < 150) continue;
     if (Math.hypot(x - FARM_ORIGIN.x, z - FARM_ORIGIN.z) < 150) continue;
+    if (Math.hypot(x - BIG_MOUNTAIN_ORIGIN.x, z - BIG_MOUNTAIN_ORIGIN.z) < BIG_MOUNTAIN_BASE_RADIUS + 220) continue;
     nearGroup.add(makeMountain(x, z, 0.9 + Math.random() * 0.8));
   }
   scene.add(nearGroup);
@@ -146,6 +148,7 @@ export function createMountains(scene) {
     const m = new THREE.Mesh(geo, midMat);
     const mx = Math.cos(ang) * rad, mz = Math.sin(ang) * rad;
     if (Math.hypot(mx - FARM_ORIGIN.x, mz - FARM_ORIGIN.z) < 150) continue;
+    if (Math.hypot(mx - BIG_MOUNTAIN_ORIGIN.x, mz - BIG_MOUNTAIN_ORIGIN.z) < BIG_MOUNTAIN_BASE_RADIUS + 220) continue;
     m.position.set(mx, h / 2 - 12, mz);
     midGroup.add(m);
   }
@@ -160,7 +163,9 @@ export function createMountains(scene) {
     const r = 38 + Math.random() * 32;
     const geo = new THREE.ConeGeometry(r, h, 6, 1);
     const m = new THREE.Mesh(geo, farMat);
-    m.position.set(Math.cos(ang) * rad, h / 2 - 10, Math.sin(ang) * rad);
+    const mx = Math.cos(ang) * rad, mz = Math.sin(ang) * rad;
+    if (Math.hypot(mx - BIG_MOUNTAIN_ORIGIN.x, mz - BIG_MOUNTAIN_ORIGIN.z) < BIG_MOUNTAIN_BASE_RADIUS + 220) continue;
+    m.position.set(mx, h / 2 - 10, mz);
     farGroup.add(m);
   }
   scene.add(farGroup);

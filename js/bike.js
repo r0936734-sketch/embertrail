@@ -101,11 +101,16 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
 
   // ---------- assemble motorcycle ----------
   const bikeGroup = new THREE.Group();
+  // The wheel axle sits above the group origin and the tyre extends below it.
+  // Lift the whole rig by its true contact offset so wheels meet the ground
+  // instead of clipping through it (the old 0.02 offset buried the tyres).
+  const BIKE_SCALE = 1.22;
+  const WHEEL_GROUND_OFFSET = WHEEL_TUBE * BIKE_SCALE;
   const baseY = terrainHeight(position.x, position.z);
-  bikeGroup.position.set(position.x, baseY, position.z);
+  bikeGroup.position.set(position.x, baseY + WHEEL_GROUND_OFFSET, position.z);
   bikeGroup.rotation.y = rotationY;
   // Overall scale so it reads as a real bike next to the walker (~1.7 m tall)
-  bikeGroup.scale.setScalar(1.22);
+  bikeGroup.scale.setScalar(BIKE_SCALE);
   scene.add(bikeGroup);
 
   // Local points: x=right, y=up, z=forward — long cruiser wheelbase
@@ -219,6 +224,20 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
   hlHousing.rotation.x = Math.PI / 2;
   hlHousing.position.copy(headlight.position).add(new THREE.Vector3(0, 0, -0.025));
   chassis.add(hlHousing);
+  const windscreen = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.42, 0.025),
+    new THREE.MeshBasicMaterial({ color: 0x8ccbe6, transparent: true, opacity: 0.34, depthWrite: false })
+  );
+  windscreen.position.copy(headTubeTop).add(new THREE.Vector3(0, 0.34, 0.14));
+  windscreen.rotation.x = -0.28;
+  chassis.add(windscreen);
+  const headlightBeam = new THREE.Mesh(
+    new THREE.ConeGeometry(0.42, 2.2, 6, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffe1a6, transparent: true, opacity: 0.10, depthWrite: false, side: THREE.DoubleSide })
+  );
+  headlightBeam.position.copy(headlight.position).add(new THREE.Vector3(0, 0, 1.05));
+  headlightBeam.rotation.x = Math.PI / 2;
+  chassis.add(headlightBeam);
 
   const rearLight = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), reflectorMat);
   rearLight.position.copy(seatTop).add(new THREE.Vector3(0, -0.04, -0.48));
@@ -434,8 +453,8 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
   let suspensionCompression = 0;
   let nitroTimer = 0;
   let nitroCooldown = 0;
-  const GRAVITY = 24;
-  const AIR_DRAG = 0.045;
+  const GRAVITY = 22;
+  const AIR_DRAG = 0.035;
   const _seatWorld = new THREE.Vector3();
 
   function nearBike(px, pz) {
@@ -580,18 +599,25 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       heading += turn * turnRate * dt * (speed < 0 ? -1 : 1);
       bikeGroup.rotation.y = heading;
 
-      const terrainAhead = terrainHeight(
-        bikeGroup.position.x + Math.sin(heading) * 1.5,
-        bikeGroup.position.z + Math.cos(heading) * 1.5
+      const lookNear = 1.8;
+      const lookFar = 4.0;
+      const terrainNear = terrainHeight(
+        bikeGroup.position.x + Math.sin(heading) * lookNear,
+        bikeGroup.position.z + Math.cos(heading) * lookNear
       );
-      const terrainFarAhead = terrainHeight(
-        bikeGroup.position.x + Math.sin(heading) * 3.2,
-        bikeGroup.position.z + Math.cos(heading) * 3.2
+      const terrainFar = terrainHeight(
+        bikeGroup.position.x + Math.sin(heading) * lookFar,
+        bikeGroup.position.z + Math.cos(heading) * lookFar
       );
-      const terrainRise = terrainAhead - terrainHeight(bikeGroup.position.x, bikeGroup.position.z);
-      const crestDrop = terrainFarAhead - terrainAhead;
-      const terrainJump = !airborne && jumpCooldown <= 0 && Math.abs(speed) > 8 && terrainRise > 0.38 && crestDrop < 0.18
-        ? THREE.MathUtils.clamp(Math.abs(speed) * 0.42 + terrainRise * 2.0, 5.5, 12.5)
+      const hereY = terrainHeight(bikeGroup.position.x, bikeGroup.position.z);
+      const terrainRise = terrainNear - hereY;
+      const crestDrop = terrainFar - terrainNear;
+      const terrainJump = !airborne && jumpCooldown <= 0 && Math.abs(speed) > 6.5 &&
+        terrainRise > 0.22 && crestDrop < -0.08
+        ? THREE.MathUtils.clamp(
+          Math.abs(speed) * 0.38 + terrainRise * 2.6 + Math.max(0, -crestDrop) * 1.8,
+          4.8, 13.5
+        )
         : 0;
       const jumpImpulse = Math.max(
         jumpProvider(bikeGroup.position, heading, Math.abs(speed)),
@@ -601,7 +627,7 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       if (!airborne && jumpImpulse > 0) {
         airborne = true;
         launchedThisFrame = true;
-        jumpCooldown = 0.9;
+        jumpCooldown = 0.75;
         verticalVelocity = jumpImpulse;
       }
 
@@ -631,6 +657,25 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
       const aheadY = aheadSurfaceY === null
         ? aheadTerrainY
         : Math.max(aheadTerrainY, aheadSurfaceY);
+      const rearPosition = {
+        x: bikeGroup.position.x - Math.sin(heading) * 0.78,
+        z: bikeGroup.position.z - Math.cos(heading) * 0.78
+      };
+      const rearTerrainY = terrainHeight(rearPosition.x, rearPosition.z);
+      const rearSurfaceY = surfaceProvider(rearPosition);
+      const rearY = rearSurfaceY === null
+        ? rearTerrainY
+        : Math.max(rearTerrainY, rearSurfaceY);
+      const frontPosition = {
+        x: bikeGroup.position.x + Math.sin(heading) * 0.82,
+        z: bikeGroup.position.z + Math.cos(heading) * 0.82
+      };
+      const frontTerrainY = terrainHeight(frontPosition.x, frontPosition.z);
+      const frontSurfaceY = surfaceProvider(frontPosition);
+      const frontY = frontSurfaceY === null
+        ? frontTerrainY
+        : Math.max(frontTerrainY, frontSurfaceY);
+      const wheelGroundY = Math.max(gy, rearY, frontY);
       // Grade affects a tyre on the ground, not a bike that is already in
       // flight.  This also prevents invisible terrain below a jump from
       // accelerating or braking it in mid-air.
@@ -645,9 +690,9 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
         verticalVelocity -= GRAVITY * dt;
         speed *= Math.max(0, 1 - AIR_DRAG * dt);
         bikeGroup.position.y += verticalVelocity * dt;
-        if (bikeGroup.position.y <= gy) {
+        if (bikeGroup.position.y <= wheelGroundY + WHEEL_GROUND_OFFSET) {
           const impactSpeed = Math.max(0, -verticalVelocity);
-          bikeGroup.position.y = gy;
+          bikeGroup.position.y = wheelGroundY + WHEEL_GROUND_OFFSET;
           verticalVelocity = 0;
           airborne = false;
           suspensionCompression = Math.min(0.12, impactSpeed * 0.009);
@@ -656,7 +701,10 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
           speed *= THREE.MathUtils.clamp(1 - Math.max(0, impactSpeed - 5) * 0.012, 0.78, 1);
         }
       } else {
-        bikeGroup.position.y += (gy - bikeGroup.position.y) * Math.min(1, dt * 10);
+        const targetY = wheelGroundY + WHEEL_GROUND_OFFSET;
+        const dy = targetY - bikeGroup.position.y;
+        if (dy > 0) bikeGroup.position.y = targetY;
+        else bikeGroup.position.y += dy * Math.min(1, dt * 18);
       }
 
       const behindPosition = {
@@ -727,8 +775,11 @@ export function createBike(scene, terrainHeight, collision, options = {}) {
 
       if (bikeCollider) {
         bikeCollider.enabled = true;
-        bikeCollider.x = bikeGroup.position.x;
-        bikeCollider.z = bikeGroup.position.z;
+        if (collision.moveCollider) collision.moveCollider(bikeCollider, bikeGroup.position.x, bikeGroup.position.z);
+        else {
+          bikeCollider.x = bikeGroup.position.x;
+          bikeCollider.z = bikeGroup.position.z;
+        }
       }
       dustMat.opacity = Math.max(0, dustMat.opacity - dt);
     }

@@ -36,6 +36,10 @@ import { createQuests } from './quests.js';
 import { createWorld } from './world.js';
 import { createStunt, STUNT_ORIGIN } from './stunt.js';
 import { createFarm, FARM_ORIGIN } from './farm.js';
+import { createBalloon } from './balloon.js';
+import { createBigMountain, BIG_MOUNTAIN_ORIGIN } from './bigmountain.js';
+import { createOuterMountains, OUTER_MOUNTAINS } from './outermountains.js';
+import { createSaveSystem } from './save.js';
 
 (function () {
   'use strict';
@@ -57,6 +61,12 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
 
   const collision = createCollisionSystem();
   const terrain = createTerrain(scene);
+  const bigMountain = createBigMountain(scene, terrain.terrainHeight, collision, {
+    onEvent: (type, data) => {
+      if (type === 'npcTalk') quests.toast(`${data.name}: ${data.line}`);
+    }
+  });
+  const outerMountains = createOuterMountains(scene, terrain.terrainHeight, collision);
   const mountains = createMountains(scene);
   const vegetation = createVegetation(scene, terrain.terrainHeight, collision);
   const structures = createStructures(scene, terrain.terrainHeight);
@@ -146,6 +156,7 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
     flavor:
       'An old stone beacon rises above the ridge. Its crown is cold — a well-aimed arrow might wake the signal fire once more.'
   };
+  const BALLOON_POS = { x: -230, z: -52 };
   const binocularPois = [
     ...landmarks.poiList.map(p => ({ name: p.name, x: p.pos.x, z: p.pos.z })),
     { name: 'Sunveil Ridge', x: 95, z: -72 },
@@ -158,6 +169,9 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
     { name: 'Saltmarsh Docks', x: 38, z: 178 },
     { name: 'The Quiet Abbey', x: -188, z: 132 },
     { name: 'Lantern Market', x: 168, z: 148 },
+    { name: 'Sky Lantern Balloon', x: BALLOON_POS.x, z: BALLOON_POS.z },
+    { name: 'Skyhold Peak', x: BIG_MOUNTAIN_ORIGIN.x, z: BIG_MOUNTAIN_ORIGIN.z },
+    ...OUTER_MOUNTAINS.map(mountain => ({ name: mountain.name, x: mountain.x, z: mountain.z })),
     { name: 'Ashen Ruins', x: 214, z: -52 },
     { name: 'Skywatch Observatory', x: 52, z: -188 },
     { name: 'Wolfhollow', x: -176, z: -128 },
@@ -173,6 +187,14 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
   // ---------- hunting / activities ----------
   const inventory = createInventory(100);
   const quests = createQuests({ inventory });
+  const balloon = createBalloon(scene, terrain.terrainHeight, collision, {
+    position: BALLOON_POS,
+    maxHeight: 140,
+    onEvent: type => {
+      if (type === 'mount') quests.toast('Sky Lantern Balloon boarded — W/S fly, A/D turn, Shift/Space rise, Ctrl/C descend.');
+      if (type === 'dismount') quests.toast('You step back onto the valley trail.');
+    }
+  });
   let ui;
   const world = createWorld(scene, terrain.terrainHeight, collision, {
     inventory,
@@ -470,11 +492,17 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
   }
 
   // Create UI after all POIs are created
+  const balloonPoi = {
+    name: 'Sky Lantern Balloon',
+    pos: BALLOON_POS,
+    r: 18,
+    flavor: 'A tethered balloon waits far out beyond the town paths. From here, the whole valley seems to open up beneath the sky.'
+  };
   const bikePoi = {
     name: 'Home Garage', pos: BIKE_POS, r: 8,
-    flavor: 'Your bike is parked in the garage beside the cabin. Use Q or the action button to ride.'
+    flavor: 'Your bike is parked in the garage beside the cabin. Dismount your horse, then press E to ride.'
   };
-  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList, ...tic.poiList, ...stunt.poiList, ...farm.poiList, bikePoi], key => {
+  ui = createUI(player, [...landmarks.poiList, ...waterfall.poiList, flameTowerPoi, ...windmill.poiList, ...mysticStone.poiList, ...world.poiList, ...range.poiList, ...mandir.poiList, ...tic.poiList, ...stunt.poiList, ...farm.poiList, ...bigMountain.poiList, ...outerMountains.poiList, balloonPoi, bikePoi], key => {
     if (typeof key === 'string' && key.startsWith('poi:')) {
       quests.discover(key.slice(4));
       return;
@@ -500,6 +528,27 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
     waypointPin.visible = !!target;
     if (target) waypointPin.position.set(target.x, terrain.terrainHeight(target.x, target.z), target.z);
   });
+
+  const saveSystem = createSaveSystem({
+    collect: () => ({
+      player: {
+        x: player.position.x, y: player.position.y, z: player.position.z,
+        heading: player.heading, climbUnlocked: player.climbUnlocked
+      },
+      inventory: { ...inventory.items },
+      quests: quests.getState(),
+      climate: { gameMinutes: climate.gameMinutes },
+      balloon: balloon.getState()
+    }),
+    apply: data => {
+      player.restoreState(data.player);
+      inventory.restore(data.inventory);
+      quests.restoreState(data.quests);
+      climate.restoreState(data.climate);
+      balloon.restoreState(data.balloon);
+    }
+  });
+  saveSystem.load();
 
   // ---------- Mira's Farm quest ----------
   const mira = world.getNpc('mira');
@@ -782,6 +831,40 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
   const btnBackToCredits = document.getElementById('btnBackToCredits');
   const btnPlay = document.getElementById('btnPlay');
   const btnPlayCredits = document.getElementById('btnPlayCredits');
+  const btnLaunchMusic = document.getElementById('btnLaunchMusic');
+  const btnLaunchQuality = document.getElementById('btnLaunchQuality');
+  const qualityNames = ['PERFORMANCE', 'BALANCED', 'ULTRA'];
+  const savedQuality = Number.parseInt(localStorage.getItem('embertrail-quality') || '', 10);
+  if (Number.isInteger(savedQuality) && savedQuality >= 0 && savedQuality <= 2) {
+    qualityController.setQuality(savedQuality);
+  }
+
+  function refreshLaunchSettings() {
+    if (btnLaunchMusic) {
+      btnLaunchMusic.textContent = audio.muted ? '♫ MUSIC: OFF' : '♫ MUSIC: ON';
+      btnLaunchMusic.classList.toggle('is-muted', audio.muted);
+    }
+    if (btnLaunchQuality) {
+      btnLaunchQuality.textContent = `◈ OPTIMIZATION: ${qualityNames[qualityController.getLevel()]}`;
+    }
+  }
+  if (btnLaunchMusic) btnLaunchMusic.addEventListener('click', e => {
+    if (audio.started) toggleMute(audio);
+    else {
+      audio.muted = !audio.muted;
+      audio.bgm.muted = audio.muted;
+    }
+    refreshLaunchSettings();
+    e.stopPropagation();
+  });
+  if (btnLaunchQuality) btnLaunchQuality.addEventListener('click', e => {
+    const next = (qualityController.getLevel() + 1) % 3;
+    qualityController.setQuality(next);
+    localStorage.setItem('embertrail-quality', String(next));
+    refreshLaunchSettings();
+    e.stopPropagation();
+  });
+  refreshLaunchSettings();
   contextBtn.style.display = 'none';
 
   function showLaunchPage(pageEl) {
@@ -1240,18 +1323,32 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
   let windAngle = 0;
   let frameNumber = 0;
   let lastDomRefresh = 0;
+  let environmentAccumulator = 0;
+  let hudAccumulator = 0;
+  let speciesProgress = { found: 0, total: 0 };
 
   function animate(now) {
     requestAnimationFrame(animate);
 
     const rawDt = Math.max(0, (now - lastTime) / 1000);
-    let dt = rawDt;
+    let dt = Math.min(rawDt, 0.05);
     lastTime = now;
     const qualityLevel = qualityController.sample(now, rawDt);
     const visualStride = qualityLevel === 0 ? 3 : qualityLevel === 1 ? 2 : 1;
     const updateVisuals = frameNumber % visualStride === 0;
+    // Keep player movement, vehicles and combat at display rate. Ambient
+    // creatures, weather, particle worlds and DOM-heavy HUD updates look the
+    // same at 18–30 Hz, but no longer compete with controls each frame.
+    const environmentInterval = qualityLevel === 2 ? 1 / 30 : qualityLevel === 1 ? 1 / 24 : 1 / 18;
+    environmentAccumulator += dt;
+    const updateEnvironment = firstFrame || environmentAccumulator >= environmentInterval;
+    const environmentDt = updateEnvironment ? Math.min(environmentAccumulator, 0.16) : 0;
+    if (updateEnvironment) environmentAccumulator = 0;
+    hudAccumulator += dt;
+    const updateHud = firstFrame || hudAccumulator >= 1 / 15;
+    const hudDt = updateHud ? hudAccumulator : 0;
+    if (updateHud) hudAccumulator = 0;
     frameNumber++;
-    dt = Math.min(dt, 0.05);
     elapsed += dt;
     windAngle += dt * 0.05;
     const windX = Math.sin(windAngle) * 1.1;
@@ -1287,6 +1384,8 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
       if (archery.aiming) binoculars.deactivate();
       traversal.update(dt, keys, player.position);
       bike.update(dt, keys, player);
+      balloon.update(dt, keys, player, elapsed, windX);
+      if (updateEnvironment) bigMountain.update(environmentDt, keys, player, elapsed);
       stunt.update(dt, elapsed, player.position, bike.riding ? bike.speed : 0);
       player.update(dt, keys, structures.fireGroup);
       player.setBinocularsActive(binoculars.active);
@@ -1300,38 +1399,66 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
       if (Math.abs(player.speed) > 0.15 && performance.now() - lastManualLook > 1500) {
         camYawOffset += (0 - camYawOffset) * Math.min(1, dt * 4.2);
       }
-      player.updateCamera(
-        dt, elapsed, camera, camYawOffset, camPitch,
-        house.resting ? Math.min(camDist, 3.8) : camDist
-      );
+      if (archery.isFollowingArrow) {
+        const target = archery.getFollowTarget();
+        if (target) {
+          const from = player.position.clone();
+          from.y += 1.55;
+          const dir = target.velocity && target.velocity.lengthSq() > 0.01
+            ? target.velocity.clone().normalize()
+            : new THREE.Vector3().subVectors(target.position, from).normalize();
+          const camBack = from.clone().addScaledVector(dir, -4.5);
+          camBack.y += 1.2;
+          camera.position.lerp(camBack, Math.min(1, dt * 10));
+          camera.lookAt(target.lookAt.x, target.lookAt.y, target.lookAt.z);
+          if (archery.getLastShotDir && player.faceDirection) {
+            player.faceDirection(archery.getLastShotDir(), Math.min(1, dt * 6));
+          }
+        } else {
+          player.updateCamera(
+            dt, elapsed, camera, camYawOffset, camPitch,
+            house.resting ? Math.min(camDist, 3.8) : camDist
+          );
+        }
+      } else {
+        player.updateCamera(
+          dt, elapsed, camera, camYawOffset, camPitch,
+          house.resting ? Math.min(camDist, 3.8) : camDist
+        );
+      }
 
       house.update(dt, elapsed, player);
       tv.update(dt, keys, player.position, camera);
     }
 
-    wildlife.update(dt, elapsed, player.group.position, player.speed);
     hunting.update(dt, elapsed, player.position);
     // Use the active player position so the range remains available while
     // dismounted instead of tracking the horse left behind elsewhere.
     range.update(dt, camera, player.position);
-    mandir.update(dt, elapsed, player.position);
-    tic.update(dt, elapsed, player.position);
-    landmarks.update(dt, elapsed, isSummer, player.group.position);
-    waterfall.update(dt, elapsed, player.group.position);
-    const dMillpond = Math.hypot(
-      player.group.position.x - landmarks.PD_POS.x,
-      player.group.position.z - landmarks.PD_POS.z
-    );
-    const dTwinFalls = Math.hypot(
-      player.group.position.x - waterfall.pondPos.x,
-      player.group.position.z - waterfall.pondPos.z
-    );
-    const nearestPond = dTwinFalls < dMillpond ? waterfall.pondPos : landmarks.PD_POS;
-    const speciesProgress = collectibles.update(dt, elapsed, player.group.position, nearestPond);
-    climate.update(dt, elapsed);
+    if (updateEnvironment) {
+      wildlife.update(environmentDt, elapsed, player.group.position, player.speed);
+      mandir.update(environmentDt, elapsed, player.position);
+      tic.update(environmentDt, elapsed, player.position);
+      landmarks.update(environmentDt, elapsed, isSummer, player.group.position);
+      waterfall.update(environmentDt, elapsed, player.group.position);
+      const dMillpond = Math.hypot(
+        player.group.position.x - landmarks.PD_POS.x,
+        player.group.position.z - landmarks.PD_POS.z
+      );
+      const dTwinFalls = Math.hypot(
+        player.group.position.x - waterfall.pondPos.x,
+        player.group.position.z - waterfall.pondPos.z
+      );
+      const nearestPond = dTwinFalls < dMillpond ? waterfall.pondPos : landmarks.PD_POS;
+      speciesProgress = collectibles.update(environmentDt, elapsed, player.group.position, nearestPond);
+      climate.update(environmentDt, elapsed);
+      windmill.update(environmentDt, elapsed, windX, 1 - climate.dayAmt, player.group.position);
+      mysticStone.update(environmentDt, elapsed, player.group.position);
+      outerMountains.update(player.group.position);
+      weather.update(environmentDt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
+      soundscape.update(environmentDt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
+    }
     if (updateVisuals) fireflies.update(dt * visualStride, elapsed, 1 - climate.dayAmt);
-    windmill.update(dt, elapsed, windX, 1 - climate.dayAmt, player.group.position);
-    mysticStone.update(dt, elapsed, player.group.position);
     
     // Update exploration markers visibility
     if (updateVisuals) {
@@ -1351,12 +1478,11 @@ import { createFarm, FARM_ORIGIN } from './farm.js';
       waypointRing.rotation.z = elapsed * 0.7;
     }
     
-    weather.update(dt, elapsed, player.group.position, climate.dayAmt, climate.getSeasonName(), camera);
     if (updateVisuals) constellations.update(dt * visualStride, camera, 1 - climate.dayAmt);
-    soundscape.update(dt, elapsed, player.group.position, climate.dayAmt > 0.5, audio.muted, weather);
     binoculars.update(dt, camera, player.group.position, name => ui.isDiscovered(name));
     player.setBinocularsActive(binoculars.active);
-    ui.update(dt, player, climate, speciesProgress);
+    if (updateHud) ui.update(hudDt, player, climate, speciesProgress, qualityController.getFps());
+    saveSystem.update(dt);
     // These functions query and write several DOM nodes; neither needs to run
     // at display refresh rate.
     if (now - lastDomRefresh > (touchControls ? 120 : 300)) {

@@ -28,7 +28,9 @@ export function isMobileDevice() {
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
 }
 
-export const WORLD_RADIUS = 430;
+// Terrain extends to +/-600.  This leaves enough room to reach Skyhold while
+// retaining a finite boundary for camera and movement safety.
+export const WORLD_RADIUS = 650;
 
 export function distSq(ax, az, bx, bz) {
   const dx = ax - bx;

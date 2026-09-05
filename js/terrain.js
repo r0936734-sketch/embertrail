@@ -2,6 +2,8 @@ import { RANGE_ORIGIN, rangeCorridorT } from './range.js';
 import { MANDIR_ORIGIN, mandirFootprintT } from './mandir.js';
 import { STUNT_ORIGIN, STUNT_PAD_OFFSET, stuntBaseY, stuntCorridorT } from './stunt.js';
 import { FARM_ORIGIN, farmFootprintT } from './farm.js';
+import { BIG_MOUNTAIN_ORIGIN, BIG_MOUNTAIN_ROAD, bigMountainFootprintT, bigMountainSurfaceY } from './bigmountain.js';
+import { OUTER_MOUNTAINS, outerMountainFootprintT, outerMountainSurfaceY } from './outermountains.js';
 
 export function createTerrain(scene) {
 
@@ -125,6 +127,24 @@ export function createTerrain(scene) {
       const pad = ft * ft * (3 - 2 * ft);
       h = h + (farmPadY - h) * pad;
     }
+    const bt = bigMountainFootprintT(x, z);
+    if (bt > 0) {
+      // bigMountainSurfaceY is already a complete slope profile.  Blending
+      // it once avoids the old double falloff that made the rendered shell
+      // and the walkable slope feel like different mountains.
+      const pad = bt;
+      const mountainY = rawTerrainHeight(BIG_MOUNTAIN_ORIGIN.x, BIG_MOUNTAIN_ORIGIN.z) + bigMountainSurfaceY(x, z);
+      h = h + (mountainY - h) * pad;
+    }
+    // The three frontier peaks use the same smooth physical profile as their
+    // visible shells. Their footprints do not overlap, but this loop keeps
+    // the terrain system open to future mountain variants.
+    for (const mountain of OUTER_MOUNTAINS) {
+      const footprint = outerMountainFootprintT(x, z, mountain);
+      if (footprint <= 0) continue;
+      const mountainY = rawTerrainHeight(mountain.x, mountain.z) + outerMountainSurfaceY(x, z, mountain);
+      h = h + (mountainY - h) * footprint;
+    }
     return h;
   }
 
@@ -147,8 +167,8 @@ export function createTerrain(scene) {
   // Give the valley a wider horizon without multiplying the vertex budget:
   // the old 420x420 sheet used 32k vertices, while this 560x560 sheet stays
   // in the same low-poly range with a slightly coarser, mobile-friendly grid.
-  const groundSize = 920;
-  const segs = 160;
+  const groundSize = 1400;
+  const segs = 180;
   const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, segs, segs);
   groundGeo.rotateX(-Math.PI / 2);
 
@@ -166,6 +186,7 @@ export function createTerrain(scene) {
   const cPath = new THREE.Color(0xab8f66);  // worn dirt near camp/trails
   const cMeadow = new THREE.Color(0x6d8246); // broad eastern meadow
   const cFarDry = new THREE.Color(0xb09a63); // sun-baked outer shelf
+  const cAlpine = new THREE.Color(0x78756f); // neutral rock for mountain slopes
 
   const pathHubs = [
     { x: 0, z: 0 }, { x: -34, z: 24 }, { x: 19, z: 11 }, { x: 46, z: -22 },
@@ -185,7 +206,8 @@ export function createTerrain(scene) {
     [pathHubs[12], pathHubs[16]],
     [pathHubs[13], pathHubs[17]],
     [pathHubs[2], { x: 178, z: 14 }],
-    [pathHubs[3], { x: 156, z: -112 }]
+    [pathHubs[3], { x: 156, z: -112 }],
+    ...BIG_MOUNTAIN_ROAD.slice(0, -1).map((point, index) => [point, BIG_MOUNTAIN_ROAD[index + 1]])
   ];
   function distToSegment(px, pz, a, b) {
     const dx = b.x - a.x;
@@ -216,11 +238,19 @@ export function createTerrain(scene) {
     const heightT = THREE.MathUtils.clamp((h + 2) / 9, 0, 1);
     _mix.copy(cLow).lerp(cHigh, heightT);
 
+    let mountainT = bigMountainFootprintT(x, z);
+    for (const mountain of OUTER_MOUNTAINS) {
+      mountainT = Math.max(mountainT, outerMountainFootprintT(x, z, mountain));
+    }
+    // Mountains deliberately stay neutral rock rather than receiving the
+    // valley's moisture patches, which was the source of green blotches.
+    if (mountainT > 0) _mix.lerp(cAlpine, mountainT * 0.9);
+
     // blend in moisture-driven dry/lush patches
     const moist = moistureNoise(x, z);
-    if (moist > 0.55) {
+    if (mountainT <= 0 && moist > 0.55) {
       _mix.lerp(cLush, (moist - 0.55) / 0.45 * 0.55);
-    } else if (moist < 0.4) {
+    } else if (mountainT <= 0 && moist < 0.4) {
       _mix.lerp(cDry, (0.4 - moist) / 0.4 * 0.5);
     }
 
@@ -238,7 +268,9 @@ export function createTerrain(scene) {
 
     // expose rock on steep slopes
     const slope = terrainSlope(x, z);
-    const rockT = THREE.MathUtils.clamp((slope - 0.55) / 1.1, 0, 1);
+    const rockT = mountainT > 0
+      ? 0
+      : THREE.MathUtils.clamp((slope - 0.55) / 1.1, 0, 1);
     if (rockT > 0) _mix.lerp(cRock, rockT * 0.85);
 
     // Worn trails link the camp to the major points of interest.

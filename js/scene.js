@@ -6,10 +6,12 @@ export function createScene() {
   const mobile = window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0 ||
     /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  // A 1.0 cap combined with the old 0.62–0.92 quality scales made high-DPI
-  // phones look noticeably softer than the desktop build.  1.35 is a useful
-  // clarity lift without paying for a full native-DPR render.
-  const maxPixelRatio = mobile ? 1.35 : 1.25;
+  // Cap device resolution before the quality scale is applied. This protects
+  // integrated GPUs without forcing the game into a visibly low-res look.
+  // Rendering at a 1.25 device ratio is a large fill-rate cost for a world
+  // with fog, particles and a full-screen sky.  1.08 remains crisp at normal
+  // viewing distance while cutting the default pixel workload substantially.
+  const maxPixelRatio = mobile ? 1.0 : 1.08;
   const renderer = new THREE.WebGLRenderer({
     antialias: false,
     alpha: false,
@@ -48,8 +50,8 @@ export function createScene() {
   // A small, hysteretic quality controller keeps fill-rate reasonable on phones
   // while allowing faster devices to recover. It only changes render resolution;
   // gameplay and module APIs remain untouched.
-  let renderScale = mobile ? 0.96 : 1;
-  let qualityLevel = mobile ? 1 : 2;
+  let renderScale = mobile ? 0.84 : 0.90;
+  let qualityLevel = 1;
   let smoothFps = 60;
   let lastAdjustment = 0;
   const qualityController = {
@@ -65,7 +67,7 @@ export function createScene() {
       qualityLevel = THREE.MathUtils.clamp(Math.round(level), 0, 2);
       // The low level remains affordable, but no longer drops to a visibly
       // pixelated "240p"-like image on a normal phone display.
-      const scales = mobile ? [0.78, 0.90, 1] : [0.72, 0.88, 1];
+      const scales = mobile ? [0.70, 0.84, 0.96] : [0.74, 0.90, 1];
       const nextScale = scales[qualityLevel];
       if (nextScale === renderScale) return;
       this.setRenderScale(nextScale);
@@ -75,11 +77,8 @@ export function createScene() {
       const fps = THREE.MathUtils.clamp(1 / frameSeconds, 10, 120);
       smoothFps += (fps - smoothFps) * 0.08;
       if (now - lastAdjustment < 1400) return qualityLevel;
-      if (smoothFps < 25 && qualityLevel > 0) {
+      if (smoothFps < 32 && qualityLevel > 0) {
         this.setQuality(qualityLevel - 1);
-        lastAdjustment = now;
-      } else if (smoothFps > 52 && qualityLevel < 2) {
-        this.setQuality(qualityLevel + 1);
         lastAdjustment = now;
       }
       return qualityLevel;

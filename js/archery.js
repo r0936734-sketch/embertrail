@@ -123,6 +123,13 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
   // ---------- flying / stuck arrows ----------
   const arrows = [];
   const stuck = [];
+  let followArrow = null;
+  let followVel = null;
+  let followTimer = 0;
+  let followElapsed = 0;
+  const FOLLOW_MIN = 2.0;
+  const FOLLOW_MAX = 2.8;
+  const lastShotDir = new THREE.Vector3(0, 0, 1);
 
   // ---------- HUD: scope vignette + reticle + power + ammo ----------
   const ui = document.createElement('div');
@@ -215,12 +222,18 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     mesh.position.copy(tmpPos);
     mesh.lookAt(mesh.position.clone().add(tmpDir));
     scene.add(mesh);
+    const vel = tmpDir.clone().multiplyScalar(MIN_SPEED + (MAX_SPEED - MIN_SPEED) * power);
     arrows.push({
       mesh,
-      vel: tmpDir.clone().multiplyScalar(MIN_SPEED + (MAX_SPEED - MIN_SPEED) * power),
+      vel,
       life: ARROW_LIFE,
       power
     });
+    followArrow = mesh;
+    followVel = vel.clone();
+    followTimer = FOLLOW_MAX;
+    followElapsed = 0;
+    lastShotDir.copy(tmpDir);
     kick = 0; // Removed kick entirely to prevent camera jump
     onEvent('shot', { power });
   }
@@ -235,6 +248,13 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     a.mesh.position.copy(pos);
     scene.add(a.mesh);
     stuck.push({ mesh: a.mesh, life: 999 }); // Arrows stay indefinitely
+    if (a.mesh === followArrow) {
+      if (followElapsed >= FOLLOW_MIN) {
+        followArrow = null;
+        followVel = null;
+        followTimer = 0;
+      }
+    }
     if (stuck.length > 50) { // Increased limit
       const old = stuck.shift();
       scene.remove(old.mesh);
@@ -275,6 +295,15 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
 
   function update(dt, keys, t = 0) {
     cooldown = Math.max(0, cooldown - dt);
+    if (followTimer > 0) {
+      followTimer -= dt;
+      followElapsed += dt;
+      if (followTimer <= 0 || (followArrow && !arrows.some(a => a.mesh === followArrow) && followElapsed >= FOLLOW_MIN)) {
+        followArrow = null;
+        followVel = null;
+        followTimer = 0;
+      }
+    }
     // Removed kick decay since kick is now 0
     const mounted = !!player.mounted;
     const canAim = !mounted && !player.sitting && (player.canUseArchery === undefined || player.canUseArchery);
@@ -364,5 +393,24 @@ const MIN_SPEED = 80;       // was 26 — even weak draws still reach range targ
     }
   }
 
-  return { update, register, get aiming() { return aiming; }, makeArrowMesh };
+  return {
+    update,
+    register,
+    get aiming() { return aiming; },
+    makeArrowMesh,
+    getFollowTarget() {
+      if (!followArrow || followTimer <= 0) return null;
+      const arrow = arrows.find(a => a.mesh === followArrow);
+      const position = followArrow.position.clone();
+      const lookAt = position.clone();
+      const velocity = arrow ? arrow.vel : followVel;
+      if (velocity && velocity.lengthSq() > 0.01) {
+        lookAt.addScaledVector(velocity.clone().normalize(), 10);
+      }
+      else lookAt.add(lastShotDir);
+      return { position, lookAt, velocity: velocity ? velocity.clone() : null };
+    },
+    get isFollowingArrow() { return !!(followArrow && followTimer > 0); },
+    getLastShotDir() { return lastShotDir.clone(); }
+  };
 }

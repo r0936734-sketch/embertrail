@@ -103,6 +103,33 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   head.position.set(0, 2.55, 1.85);
   horseBody.add(head);
 
+  // Small face and tack details make the horse read as a companion rather
+  // than a plain block model, while keeping the very cheap low-poly style.
+  const horseEyeMat = new THREE.MeshBasicMaterial({ color: 0x17110d });
+  [-0.19, 0.19].forEach(x => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), horseEyeMat);
+    eye.position.set(x, 0.08, 0.39);
+    head.add(eye);
+  });
+  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.24, 0.27), darkMat);
+  muzzle.position.set(0, -0.14, 0.45);
+  head.add(muzzle);
+  const saddleMat = new THREE.MeshStandardMaterial({ color: 0x4a2b1d, roughness: 0.92, flatShading: true });
+  const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.18, 0.82), saddleMat);
+  saddle.position.set(0, 2.16, -0.22);
+  horseBody.add(saddle);
+  const saddleBlanket = new THREE.Mesh(
+    new THREE.BoxGeometry(0.92, 0.08, 1.05),
+    new THREE.MeshStandardMaterial({ color: 0x274766, roughness: 0.95, flatShading: true })
+  );
+  saddleBlanket.position.set(0, 2.08, -0.22);
+  horseBody.add(saddleBlanket);
+  const bridleMat = new THREE.MeshBasicMaterial({ color: 0x332017 });
+  const bridle = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.018, 5, 8), bridleMat);
+  bridle.rotation.y = Math.PI / 2;
+  bridle.position.set(0, 2.55, 1.92);
+  horseBody.add(bridle);
+
   const forelock = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.12), darkMat);
   forelock.position.set(0, 2.83, 1.55);
   horseBody.add(forelock);
@@ -145,6 +172,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const shirtDetailMat = new THREE.MeshStandardMaterial({ color: 0x7fa5d4, roughness: 0.82, flatShading: true });
   const packMat = new THREE.MeshStandardMaterial({ color: 0x5a3825, roughness: 0.9, flatShading: true });
   const faceDetailMat = new THREE.MeshBasicMaterial({ color: 0x241a16 });
+  const scarfMat = new THREE.MeshStandardMaterial({ color: 0xb64736, roughness: 0.9, flatShading: true });
 
   const torsoBaseY = 2.55;
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.4), riderMat);
@@ -156,6 +184,14 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const riderPack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.55, 0.2), packMat);
   riderPack.position.set(0, 2.58, -0.22);
   riderGroup.add(riderPack);
+  const riderScarf = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.035, 5, 10), scarfMat);
+  riderScarf.rotation.x = Math.PI / 2;
+  riderScarf.position.set(0, 2.92, 0.07);
+  riderGroup.add(riderScarf);
+  const riderScarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.035), scarfMat);
+  riderScarfTail.position.set(-0.18, 2.70, -0.18);
+  riderScarfTail.rotation.z = 0.12;
+  riderGroup.add(riderScarfTail);
 
   const riderHeadBaseY = 3.15;
   const riderHead = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), skinMat);
@@ -235,6 +271,14 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
   const walkPack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.2), packMat);
   walkPack.position.set(0, 0.45, -0.22);
   walkUpperBody.add(walkPack);
+  const walkScarf = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.035, 5, 10), scarfMat);
+  walkScarf.rotation.x = Math.PI / 2;
+  walkScarf.position.set(0, 0.85, 0.03);
+  walkUpperBody.add(walkScarf);
+  const walkScarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.035), scarfMat);
+  walkScarfTail.position.set(-0.18, 0.60, -0.17);
+  walkScarfTail.rotation.z = 0.12;
+  walkUpperBody.add(walkScarfTail);
 
   const walkHead = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), skinMat);
   walkHead.position.set(0, 1.05, 0);
@@ -471,10 +515,46 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     walkLegAmp = 0; walkKneeAmp = 0; walkBob = 0; walkLean = 0; walkForwardLean = 0;
   }
 
+  function updateExternalPose(dt) {
+    // Vehicles own movement, but the rider must still be animated every
+    // frame.  Previously createBike parked a standing walker on the saddle.
+    if (vehiclePose === 'bike') {
+      const motion = THREE.MathUtils.clamp(Math.abs(speed) / 20, 0, 1);
+      const pedal = Math.sin(idleTime * (4 + motion * 9)) * (0.12 + motion * 0.12);
+      walker.visible = true;
+      walkUpperBody.position.y += (walkHipY - 0.10 - walkUpperBody.position.y) * Math.min(1, dt * 10);
+      walkUpperBody.rotation.x += (-0.22 - walkUpperBody.rotation.x) * Math.min(1, dt * 9);
+      walkUpperBody.rotation.z += (0 - walkUpperBody.rotation.z) * Math.min(1, dt * 9);
+      walkLegL.hip.rotation.x += (-1.06 + pedal - walkLegL.hip.rotation.x) * Math.min(1, dt * 11);
+      walkLegR.hip.rotation.x += (-1.06 - pedal - walkLegR.hip.rotation.x) * Math.min(1, dt * 11);
+      walkLegL.knee.rotation.x += (1.25 - pedal * 0.7 - walkLegL.knee.rotation.x) * Math.min(1, dt * 11);
+      walkLegR.knee.rotation.x += (1.25 + pedal * 0.7 - walkLegR.knee.rotation.x) * Math.min(1, dt * 11);
+      [walkArmL, walkArmR].forEach((arm, index) => {
+        arm.shoulder.rotation.x += (-1.12 + (index ? -pedal : pedal) * 0.25 - arm.shoulder.rotation.x) * Math.min(1, dt * 12);
+        arm.elbow.rotation.x += (0.78 - arm.elbow.rotation.x) * Math.min(1, dt * 12);
+      });
+    } else if (vehiclePose === 'balloon') {
+      walker.visible = true;
+      walkUpperBody.position.y += (walkHipY - walkUpperBody.position.y) * Math.min(1, dt * 8);
+      walkUpperBody.rotation.x += (0 - walkUpperBody.rotation.x) * Math.min(1, dt * 8);
+      walkLegL.hip.rotation.x += (-0.38 - walkLegL.hip.rotation.x) * Math.min(1, dt * 8);
+      walkLegR.hip.rotation.x += (-0.38 - walkLegR.hip.rotation.x) * Math.min(1, dt * 8);
+      walkLegL.knee.rotation.x += (0.72 - walkLegL.knee.rotation.x) * Math.min(1, dt * 8);
+      walkLegR.knee.rotation.x += (0.72 - walkLegR.knee.rotation.x) * Math.min(1, dt * 8);
+      [walkArmL, walkArmR].forEach(arm => {
+        arm.shoulder.rotation.x += (-0.78 - arm.shoulder.rotation.x) * Math.min(1, dt * 9);
+        arm.elbow.rotation.x += (0.92 - arm.elbow.rotation.x) * Math.min(1, dt * 9);
+      });
+    }
+  }
+
   function update(dt, keys, fireGroup) {
-    if (archeryActive) keys = { ...keys, shift: false }; // aim while walking, never sprint
-    if (externalControl) return;
     idleTime += dt;
+    if (archeryActive) keys = { ...keys, shift: false }; // aim while walking, never sprint
+    if (externalControl) {
+      updateExternalPose(dt);
+      return;
+    }
 
     // ---------- key actions ----------
     if (keys['e']) {
@@ -809,16 +889,34 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       riderBinoculars.visible = false;
       // The bike places the walker's origin below the seat, so the hips land
       // on the saddle while the bent legs and arms form a riding posture.
-      walkUpperBody.position.y += ((walkHipY - 0.02) - walkUpperBody.position.y) * Math.min(1, dt * 14);
+      const rideSpeed = THREE.MathUtils.clamp(Math.abs(speed) / 22, 0, 1);
+      const pedal = Math.sin(t * (4 + rideSpeed * 9)) * (0.07 + rideSpeed * 0.11);
+      walkUpperBody.position.y += ((walkHipY - 0.02 + Math.abs(pedal) * 0.025) - walkUpperBody.position.y) * Math.min(1, dt * 14);
       walkUpperBody.rotation.x += (0.32 - walkUpperBody.rotation.x) * Math.min(1, dt * 12);
       walkUpperBody.rotation.y += (0 - walkUpperBody.rotation.y) * Math.min(1, dt * 12);
       walkUpperBody.rotation.z += (0 - walkUpperBody.rotation.z) * Math.min(1, dt * 12);
-      poseArm(walkArmL, -1.15, 0.35, dt);
-      poseArm(walkArmR, -1.15, 0.35, dt);
-      walkLegL.hip.rotation.x += (-0.72 - walkLegL.hip.rotation.x) * Math.min(1, dt * 12);
-      walkLegR.hip.rotation.x += (-0.72 - walkLegR.hip.rotation.x) * Math.min(1, dt * 12);
-      walkLegL.knee.rotation.x += (1.05 - walkLegL.knee.rotation.x) * Math.min(1, dt * 12);
-      walkLegR.knee.rotation.x += (1.05 - walkLegR.knee.rotation.x) * Math.min(1, dt * 12);
+      poseArm(walkArmL, -1.15 + pedal * 0.18, 0.35, dt);
+      poseArm(walkArmR, -1.15 - pedal * 0.18, 0.35, dt);
+      walkLegL.hip.rotation.x += (-0.82 + pedal - walkLegL.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.hip.rotation.x += (-0.82 - pedal - walkLegR.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegL.knee.rotation.x += (1.10 - pedal * 0.65 - walkLegL.knee.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.knee.rotation.x += (1.10 + pedal * 0.65 - walkLegR.knee.rotation.x) * Math.min(1, dt * 12);
+      return;
+    }
+
+    if (vehiclePose === 'balloon' && !archeryActive) {
+      walkBinoculars.visible = false;
+      riderBinoculars.visible = false;
+      walkUpperBody.position.y += (walkHipY - walkUpperBody.position.y) * Math.min(1, dt * 14);
+      walkUpperBody.rotation.x += (-0.18 - walkUpperBody.rotation.x) * Math.min(1, dt * 12);
+      walkUpperBody.rotation.y += (0 - walkUpperBody.rotation.y) * Math.min(1, dt * 12);
+      walkUpperBody.rotation.z += (0 - walkUpperBody.rotation.z) * Math.min(1, dt * 12);
+      poseArm(walkArmL, -0.85, 0.2, dt);
+      poseArm(walkArmR, -0.85, 0.2, dt);
+      walkLegL.hip.rotation.x += (-0.6 - walkLegL.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.hip.rotation.x += (-0.6 - walkLegR.hip.rotation.x) * Math.min(1, dt * 12);
+      walkLegL.knee.rotation.x += (1.0 - walkLegL.knee.rotation.x) * Math.min(1, dt * 12);
+      walkLegR.knee.rotation.x += (1.0 - walkLegR.knee.rotation.x) * Math.min(1, dt * 12);
       return;
     }
 
@@ -925,7 +1023,8 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
     }
 
     const totalAngle = (mounted ? heading : walker.rotation.y) + Math.PI + camYawOffset;
-    const horiz = camDist * Math.cos(camPitch);
+    const cameraDistance = vehiclePose === 'balloon' ? Math.max(camDist, 16) : camDist;
+    const horiz = cameraDistance * Math.cos(camPitch);
     const cx = follow.position.x + Math.sin(totalAngle) * horiz;
     const cz = follow.position.z + Math.cos(totalAngle) * horiz;
     const cy = follow.position.y + 2.4 + camDist * Math.sin(camPitch);
@@ -995,10 +1094,18 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       binocularsRaised = Boolean(active) && !archeryActive;
     },
     setArcheryPose(active, draw = 0, yaw = null) {
-      archeryActive = Boolean(active) && !mounted && traversalPose === 'none' && !sitting && !externalControl;
+      archeryActive = Boolean(active) && !mounted && traversalPose === 'none' && !sitting && (!externalControl || vehiclePose === 'balloon');
       archeryDraw = THREE.MathUtils.clamp(draw, 0, 1);
       archeryYaw = archeryActive ? yaw : null;
       if (archeryActive) binocularsRaised = false;
+    },
+    faceDirection(direction, blend = 1) {
+      if (!direction || direction.lengthSq() < 0.0001) return;
+      const target = Math.atan2(direction.x, direction.z);
+      let delta = target - walker.rotation.y;
+      delta = ((delta + Math.PI) % (Math.PI * 2)) - Math.PI;
+      walker.rotation.y += delta * THREE.MathUtils.clamp(blend, 0, 1);
+      heading = walker.rotation.y;
     },
     restoreStamina(amount) { stamina = Math.min(staminaMax, stamina + amount); },
     setExternalControl(value) {
@@ -1014,6 +1121,7 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
         walker.visible = true;
       }
     },
+    dismount() { dismount(); },
     setExternalSpeed(value) {
       if (externalControl) speed = value;
     },
@@ -1028,8 +1136,17 @@ export function createPlayer(scene, terrainHeight, terrainNormalApprox, playHoof
       velocityY = 0;
       grounded = true;
     },
+    restoreState(state = {}) {
+      const x = Number(state.x);
+      const z = Number(state.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+      const y = Number.isFinite(state.y) ? state.y : terrainHeight(x, z);
+      if (mounted) dismount();
+      teleportWalker(x, y, z, Number.isFinite(state.heading) ? state.heading : walker.rotation.y);
+      if (state.climbUnlocked) climbUnlocked = true;
+    },
     get grounded() { return grounded; },
-    get canUseArchery() { return !mounted && !sitting && traversalPose === 'none' && !externalControl; },
+    get canUseArchery() { return !mounted && !sitting && traversalPose === 'none' && (!externalControl || vehiclePose === 'balloon'); },
     get archeryActive() { return archeryActive; },
     getBowHand() { return walkArmL.hand; },
     getDrawHand() { return walkArmR.hand; },
